@@ -22,5 +22,5 @@ asmRegex = "^(.*)\\.asm$"
 
 parseFileName :: String -> Either String (InputFile, OutputFile) 
 parseFileName s = case s =~ asmRegex of 
-  ((_, "",_, _) :: (String, String, String, [String])) -> Left "invalid filename"
-  ((_, m,_, matches) :: (String, String, String, [String])) -> Right $ (InputFile m, OutputFile (head matches <> ".hack"))
+  ((_, "", _, _) :: (String, String, String, [String])) -> Left "invalid filename"
+  ((_, m, _, matches) :: (String, String, String, [String])) -> Right $ (InputFile m, OutputFile (head matches <> ".hack"))
