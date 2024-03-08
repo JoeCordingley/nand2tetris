@@ -37,9 +37,9 @@ library
   ghc-options: -Wall -Wcompat -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wmissing-export-lists -Wmissing-home-modules -Wpartial-fields -Wredundant-constraints
   build-depends:
       base >=4.7 && <5
+    , containers
     , mtl
     , optparse-applicative
-    , parsec
     , pipes
     , regex-tdfa
     , transformers
@@ -57,9 +57,9 @@ executable assembler-exe
   build-depends:
       assembler
     , base >=4.7 && <5
+    , containers
     , mtl
     , optparse-applicative
-    , parsec
     , pipes
     , regex-tdfa
     , transformers
@@ -78,9 +78,9 @@ test-suite assembler-test
   build-depends:
       assembler
     , base >=4.7 && <5
+    , containers
     , mtl
     , optparse-applicative
-    , parsec
     , pipes
     , regex-tdfa
     , transformers

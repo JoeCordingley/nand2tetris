@@ -24,9 +24,9 @@ dependencies:
 - pipes
 - optparse-applicative
 - regex-tdfa
-- parsec
 - transformers
 - mtl
+- containers
 
 ghc-options:
 - -Wall
