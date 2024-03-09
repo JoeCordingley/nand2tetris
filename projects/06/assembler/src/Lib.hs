@@ -11,16 +11,13 @@ import Data.Map (Map, unionWith)
 import Numeric (showIntAtBase)
 import Data.Char (intToDigit, isDigit)
 import Control.Monad.State.Lazy (StateT(..), evalStateT)
-import Control.Monad.Except
 import Control.Applicative (Alternative, many, empty, (<|>))
 import Data.List (uncons)
-import Data.List.NonEmpty (NonEmpty)
-import Data.Maybe (maybeToList)
 
 data InputFile = InputFile String
 data OutputFile = OutputFile String
 
-type Parser = StateT String (ExceptT String NonEmpty)
+type Parser = StateT String []
 
 printFile :: InputFile -> OutputFile -> IO ()
 printFile (InputFile input) (OutputFile output) = 
