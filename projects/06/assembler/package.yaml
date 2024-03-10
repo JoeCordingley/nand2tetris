@@ -21,12 +21,12 @@ description:         Please see the README on GitHub at <https://github.com/gith
 
 dependencies:
 - base >= 4.7 && < 5
-- pipes
-- optparse-applicative
-- regex-tdfa
-- transformers
-- mtl
 - containers
+- mtl
+- regex-tdfa
+- HUnit
+- HUnit
+- optparse-applicative
 
 ghc-options:
 - -Wall
@@ -40,9 +40,7 @@ ghc-options:
 - -Wredundant-constraints
 
 library:
-  source-dirs: 
-  - src
-  - app
+  source-dirs: src
 
 executables:
   assembler-exe:
@@ -65,3 +63,5 @@ tests:
     - -with-rtsopts=-N
     dependencies:
     - assembler
+    - tasty-hunit
+    - tasty

@@ -3,21 +3,21 @@ module Lib
     , InputFile(..)
     , OutputFile(..)
     , assemble
+    , line
     ) where
 
 import System.IO (withFile, IOMode(ReadMode, WriteMode), hGetContents, hPutStrLn)
 import Text.Read (readMaybe) 
-import Data.Map (Map, unionWith)
 import Numeric (showIntAtBase)
-import Data.Char (intToDigit, isDigit)
-import Control.Monad.State.Lazy (StateT(..), evalStateT)
-import Control.Applicative (Alternative, many, empty, (<|>))
-import Data.List (uncons)
+import Data.Char (intToDigit)
+import Control.Monad.State.Lazy (evalStateT)
+import Control.Applicative (many, empty, (<|>))
+import Data.List (intercalate)
+import Data.List.NonEmpty (NonEmpty(..))
+import Parser
 
 data InputFile = InputFile String
 data OutputFile = OutputFile String
-
-type Parser = StateT String []
 
 printFile :: InputFile -> OutputFile -> IO ()
 printFile (InputFile input) (OutputFile output) = 
@@ -29,33 +29,15 @@ printFile (InputFile input) (OutputFile output) =
         Nothing -> putStrLn "failure"
       
 assemble :: String -> Maybe String
-assemble = headMay . evalStateT (concat <$> many line) where
-  headMay (a:_) = Just a
-  headMay [] = Nothing
+assemble = headMay . evalStateT (intercalate "\n" <$> many line <* eof) where
+  headMay (a:_) = pure a
+  headMay [] = empty
 
 line :: Parser String
-line = instruction <* char '\n'
-
-anyChar :: Parser Char
-anyChar = StateT $ toNE . uncons where
-  toNE (Just (a,as)) = pure (a, as)
-  toNE Nothing = fail "eof"
-
-
-ifChar :: (Char -> Bool) -> Parser Char
-ifChar p = anyChar >>= guarded p 
-
-guarded :: Alternative f => (a -> Bool) -> a -> f a
-guarded p a = if p a then pure a else empty
-
-char :: Char -> Parser Char
-char = ifChar . (==)
-
-string :: String -> Parser String
-string = traverse char
+line = instruction <* endOfLine
 
 instruction :: Parser String
-instruction = fmap (<>"\n") (ainstruction <|> cinstruction)
+instruction = ainstruction <|> cinstruction
   
 ainstruction :: Parser String
 ainstruction = do
@@ -81,30 +63,48 @@ cinstruction = do
   return $ "111" <> c <> d <> j 
 
 dest :: Parser String 
-dest = 
-  "001" <$ char 'M' <|>
-  "010" <$ char 'D'
+dest = foldr f empty
+  [ ("001", "M")
+  , ("010", "D") 
+  , ("011", "MD") 
+  , ("100", "A") 
+  , ("101", "AM")
+  , ("110", "AD")
+  , ("111", "AMD")
+  ] where f (code, symbol) rest = code <$ string symbol <|> rest
 
 comp :: Parser String 
 comp = dComp <|> mComp where
-  dComp = fmap ('0':) $ comp' 'D'
-  mComp = fmap ('1':) $ comp' 'M'
-  comp' dOrM = 
-    "000010" <$ string (dOrM:"+A") <|>
-    "001100" <$ char dOrM <|>
-    "110000" <$ char 'A' 
+  dComp = fmap ('0':) $ comp' "A"
+  mComp = fmap ('1':) $ comp' "M"
+  comp' aOrM = foldr1 (<|>) . fmap f $ ("101010", "0") :|
+    [ ("111111", "1")
+    , ("111010", "-1")
+    , ("001100", "D") 
+    , ("110000", aOrM)
+    , ("001101", "!" <> "D") 
+    , ("110001", "!" <> aOrM) 
+    , ("001111", "-" <> "D") 
+    , ("110011", "-" <> aOrM)
+    , ("011111", "D" <> "+1")
+    , ("110111", aOrM <> "+1")
+    , ("001110", "D" <> "-1")
+    , ("110010", aOrM <> "-1")
+    , ("000010", "D+" <> aOrM) 
+    , ("010011", "D-" <> aOrM) 
+    , ("000111", aOrM <> "-D") 
+    , ("000000", "D&" <> aOrM) 
+    , ("010101", "D|" <> aOrM) 
+    ] where f (code, symbol) = code <$ string symbol 
 
 jump :: Parser String 
-jump = "001" <$ string "JGT"
-
-data MonoidMap a b = MonoidMap (Map a b) deriving Show
-
-instance (Ord a, Semigroup b) => Semigroup (MonoidMap a b) where
-  MonoidMap l <> MonoidMap r = MonoidMap $ unionWith (<>) l r
-
-instance (Ord a, Semigroup b) => Monoid (MonoidMap a b) where
-  mempty = MonoidMap mempty
-
-digit :: Parser Char
-digit = ifChar isDigit
+jump = foldr f empty
+  [ ("001", "JGT")
+  , ("010", "JEQ") 
+  , ("011", "JGE") 
+  , ("100", "JLT") 
+  , ("101", "JNE") 
+  , ("110", "JLE") 
+  , ("111", "JMP") 
+  ] where f (code, symbol) rest = code <$ string symbol <|> rest
 

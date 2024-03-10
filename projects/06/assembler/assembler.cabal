@@ -26,23 +26,21 @@ source-repository head
 library
   exposed-modules:
       Lib
-      Main
+      Parser
   other-modules:
       Paths_assembler
   autogen-modules:
       Paths_assembler
   hs-source-dirs:
       src
-      app
   ghc-options: -Wall -Wcompat -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wmissing-export-lists -Wmissing-home-modules -Wpartial-fields -Wredundant-constraints
   build-depends:
-      base >=4.7 && <5
+      HUnit
+    , base >=4.7 && <5
     , containers
     , mtl
     , optparse-applicative
-    , pipes
     , regex-tdfa
-    , transformers
   default-language: Haskell2010
 
 executable assembler-exe
@@ -55,14 +53,13 @@ executable assembler-exe
       app
   ghc-options: -Wall -Wcompat -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wmissing-export-lists -Wmissing-home-modules -Wpartial-fields -Wredundant-constraints -threaded -rtsopts -with-rtsopts=-N
   build-depends:
-      assembler
+      HUnit
+    , assembler
     , base >=4.7 && <5
     , containers
     , mtl
     , optparse-applicative
-    , pipes
     , regex-tdfa
-    , transformers
   default-language: Haskell2010
 
 test-suite assembler-test
@@ -76,12 +73,13 @@ test-suite assembler-test
       test
   ghc-options: -Wall -Wcompat -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wmissing-export-lists -Wmissing-home-modules -Wpartial-fields -Wredundant-constraints -threaded -rtsopts -with-rtsopts=-N
   build-depends:
-      assembler
+      HUnit
+    , assembler
     , base >=4.7 && <5
     , containers
     , mtl
     , optparse-applicative
-    , pipes
     , regex-tdfa
-    , transformers
+    , tasty
+    , tasty-hunit
   default-language: Haskell2010
