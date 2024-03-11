@@ -10,11 +10,11 @@ import System.IO (withFile, IOMode(ReadMode, WriteMode), hGetContents, hPutStrLn
 import Text.Read (readMaybe) 
 import Numeric (showIntAtBase)
 import Data.Char (intToDigit)
-import Control.Monad.State.Lazy (evalStateT)
 import Control.Applicative (many, empty, some, (<|>))
 import Data.List (intercalate)
 import Data.List.NonEmpty (NonEmpty(..))
 import Data.Maybe (maybeToList)
+import Data.Functor (void)
 import Parser
 
 data InputFile = InputFile String
@@ -33,7 +33,7 @@ filterWhitespace :: String -> String
 filterWhitespace = filter (/= ' ')
       
 assemble :: String -> Maybe String
-assemble = headMay . map (intercalate "\n") . evalStateT instructions . Just . filterWhitespace  where
+assemble = headMay . map (intercalate "\n") . runParser instructions . filterWhitespace  where
   headMay (a:_) = pure a
   headMay [] = empty
 
@@ -46,7 +46,7 @@ line :: Parser (Maybe String)
 line = optional instruction <* optional comment <* endOfLine 
 
 comment :: Parser ()
-comment = string "//" *> many anyChar *> endOfLine
+comment = void $ string "//" *> many anyChar 
 
 instruction :: Parser String
 instruction = ainstruction <|> cinstruction
