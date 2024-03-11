@@ -7,7 +7,7 @@ instructionsAndOutputs = cinstructionsAndOutputs <> ainstructionsAndOutputs <> c
 
 commentsAndBlankLines :: [(String, String)]
 commentsAndBlankLines = 
-  [("", "")
+  [(" ", "")
   ,("  // this is a comment", "")
   ]
 

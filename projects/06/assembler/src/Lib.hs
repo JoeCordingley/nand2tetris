@@ -11,9 +11,10 @@ import Text.Read (readMaybe)
 import Numeric (showIntAtBase)
 import Data.Char (intToDigit)
 import Control.Monad.State.Lazy (evalStateT)
-import Control.Applicative (many, empty, (<|>))
+import Control.Applicative (many, empty, some, (<|>))
 import Data.List (intercalate)
 import Data.List.NonEmpty (NonEmpty(..))
+import Data.Maybe (maybeToList)
 import Parser
 
 data InputFile = InputFile String
@@ -24,24 +25,35 @@ printFile (InputFile input) (OutputFile output) =
   withFile input ReadMode $ \i -> 
     withFile output WriteMode $ \o -> do
       contents <- hGetContents i 
-      case assemble contents of
+      case assemble $ contents of
         Just assembled -> hPutStrLn o assembled *> putStrLn "success"
         Nothing -> putStrLn "failure"
+
+filterWhitespace :: String -> String
+filterWhitespace = filter (/= ' ')
       
 assemble :: String -> Maybe String
-assemble = headMay . evalStateT (intercalate "\n" <$> many line <* eof) where
+assemble = headMay . map (intercalate "\n") . evalStateT instructions . Just . filterWhitespace  where
   headMay (a:_) = pure a
   headMay [] = empty
 
-line :: Parser String
-line = instruction <* endOfLine
+instructions :: Parser [String]
+instructions = do
+  maybeLines <- many line 
+  return $ maybeLines >>= maybeToList
+
+line :: Parser (Maybe String)
+line = optional instruction <* optional comment <* endOfLine 
+
+comment :: Parser ()
+comment = string "//" *> many anyChar *> endOfLine
 
 instruction :: Parser String
 instruction = ainstruction <|> cinstruction
   
 ainstruction :: Parser String
 ainstruction = do
-  v <- char '@' *> many digit
+  v <- char '@' *> some digit
   case binaryValue v of
     Nothing -> empty
     Just a -> return $ "0" <> a 
