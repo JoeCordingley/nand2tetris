@@ -38,6 +38,7 @@ library
       HUnit
     , base >=4.7 && <5
     , containers
+    , lens
     , mtl
     , optparse-applicative
     , regex-tdfa
@@ -57,6 +58,7 @@ executable assembler-exe
     , assembler
     , base >=4.7 && <5
     , containers
+    , lens
     , mtl
     , optparse-applicative
     , regex-tdfa
@@ -77,6 +79,7 @@ test-suite assembler-test
     , assembler
     , base >=4.7 && <5
     , containers
+    , lens
     , mtl
     , optparse-applicative
     , regex-tdfa

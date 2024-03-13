@@ -1,3 +1,6 @@
+{-# Language FlexibleContexts #-}
+
+
 module Lib
     ( printFile
     , InputFile(..)
@@ -15,10 +18,29 @@ import Data.List (intercalate)
 import Data.List.NonEmpty (NonEmpty(..))
 import Data.Maybe (maybeToList)
 import Data.Functor (void)
+import Data.Functor.Compose (Compose(..))
+import Data.Function ((&))
+import Control.Monad.State.Lazy (StateT, State, lift, modify, evalStateT, MonadState)
+import Control.Monad (join, MonadPlus)
 import Parser
+import Control.Lens (Lens', (%=), use)
+import Data.Map (insert, Map)
 
 data InputFile = InputFile String
 data OutputFile = OutputFile String
+
+type CountingInstructions = StateT Int 
+
+class WithInstructionCount s where
+  instructionCountLens :: Lens' s Int
+
+instance WithSource ParseState where
+  sourceLens f (ParseState i s) = fmap (ParseState i) $ f s
+
+instance WithInstructionCount ParseState where
+  instructionCountLens f (ParseState i s) = fmap ( (&) s . ParseState) $ f i
+
+data ParseState = ParseState Int (Maybe String)
 
 printFile :: InputFile -> OutputFile -> IO ()
 printFile (InputFile input) (OutputFile output) = 
@@ -33,25 +55,43 @@ filterWhitespace :: String -> String
 filterWhitespace = filter (/= ' ')
       
 assemble :: String -> Maybe String
-assemble = headMay . map (intercalate "\n") . runParser instructions . filterWhitespace  where
+assemble = headMay . map (intercalate "\n") . runParser (evalStateT instructions 0) . filterWhitespace  where
   headMay (a:_) = pure a
   headMay [] = empty
 
-instructions :: Parser [String]
-instructions = do
-  maybeLines <- many line 
-  return $ maybeLines >>= maybeToList
+instructions :: CountingInstructions Parser [String]
+instructions = (>>= maybeToList) <$> many line 
 
-line :: Parser (Maybe String)
-line = optional instruction <* optional comment <* endOfLine 
+line :: CountingInstructions Parser (Maybe String)
+line = fmap join (optional codePortion) <* lift (optional comment) <* lift endOfLine 
 
 comment :: Parser ()
-comment = void $ string "//" *> many anyChar 
+comment = void $ string "//" *> many (ifChar (/= '\n'))
 
-instruction :: Parser String
-instruction = ainstruction <|> cinstruction
-  
-ainstruction :: Parser String
+codePortion :: CountingInstructions Parser (Maybe String)
+codePortion = Just <$> instruction
+
+instruction :: CountingInstructions Parser String
+instruction = lift (ainstruction <|> cinstruction)  <* modify (+1)
+
+instruction2 :: (MonadState s m, MonadPlus m, WithSource s, WithInstructionCount s) => m String
+instruction2 = (ainstruction <|> cinstruction)  <* (instructionCountLens %= (+1))
+
+instructionCount :: (MonadState s m, MonadPlus m, WithInstructionCount s) => m Int
+instructionCount = use instructionCountLens
+
+label :: (MonadState s m, MonadPlus m, WithSource s, WithInstructionCount s, MonadState (Map String Int) n) => Compose m n ()
+label = Compose $ do
+  s <- char '(' *> symbol <* char ')'
+  i <- instructionCount
+  return $ modify $ insert s (i+1)
+
+symbol :: (MonadState s m, MonadPlus m, WithSource s) => m String
+symbol = (:) <$> charIn validFirstLetters <*> many (charIn validSubsequentLetters) where
+  validFirstLetters = ['a'..'z'] <> ['A'..'Z'] <> ['.', '_', ':', '$']
+  validSubsequentLetters = validFirstLetters <> ['0'..'9']
+
+ainstruction :: (MonadState s m, MonadPlus m, WithSource s) => m String
 ainstruction = do
   v <- char '@' *> some digit
   case binaryValue v of
@@ -67,14 +107,14 @@ binaryValue s = readMaybe s >>= pad .  toBin where
 toBin :: Int -> String
 toBin d = showIntAtBase 2 intToDigit d ""
 
-cinstruction :: Parser String
+cinstruction :: (MonadState s m, MonadPlus m, WithSource s) => m String
 cinstruction = do
   d <- dest <* char '=' <|> return "000"
   c <- comp
   j <- char ';' *> jump <|> return "000"
   return $ "111" <> c <> d <> j 
 
-dest :: Parser String 
+dest :: (MonadState s m, MonadPlus m, WithSource s) => m String 
 dest = foldr f empty
   [ ("001", "M")
   , ("010", "D") 
@@ -85,7 +125,7 @@ dest = foldr f empty
   , ("111", "AMD")
   ] where f (code, symbol) rest = code <$ string symbol <|> rest
 
-comp :: Parser String 
+comp :: (MonadState s m, MonadPlus m, WithSource s) => m String 
 comp = dComp <|> mComp where
   dComp = fmap ('0':) $ comp' "A"
   mComp = fmap ('1':) $ comp' "M"
@@ -109,7 +149,7 @@ comp = dComp <|> mComp where
     , ("010101", "D|" <> aOrM) 
     ] where f (code, symbol) = code <$ string symbol 
 
-jump :: Parser String 
+jump :: (MonadState s m, MonadPlus m, WithSource s) => m String 
 jump = foldr f empty
   [ ("001", "JGT")
   , ("010", "JEQ") 

@@ -27,6 +27,7 @@ dependencies:
 - HUnit
 - HUnit
 - optparse-applicative
+- lens
 
 ghc-options:
 - -Wall
