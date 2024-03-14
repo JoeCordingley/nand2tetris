@@ -3,15 +3,13 @@
 {-# Language RankNTypes #-}
 
 module Parser
-  ( Parser
-  , endOfLine
+  ( endOfLine
   , char
   , string
   , digit
   , eof
   , anyChar
   , optional
-  , runParser
   , ifChar
   , charIn
   , WithSource(..)
@@ -32,9 +30,9 @@ class WithSource s where
 instance WithSource (Maybe String) where
   sourceLens = id
 
-type Parser = StateT (Maybe String) []
+--type Parser = StateT (Maybe String) []
 
-endOfLine :: (MonadState (Maybe String) m, MonadPlus m) => m ()
+endOfLine :: (MonadState s m, MonadPlus m, WithSource s) => m ()
 endOfLine = void (char '\n') <|> eof
 
 eof :: (MonadState s m, MonadPlus m, WithSource s) => m ()
@@ -73,13 +71,13 @@ liftMaybe (Just a) = pure a
 digit :: (MonadState s m, MonadPlus m, WithSource s) => m Char
 digit = ifChar isDigit
 
-optional :: MonadPlus m => m a -> m (Maybe a)
+optional :: Alternative m => m a -> m (Maybe a)
 optional p = fmap Just p <|> pure Nothing
 
-runParser :: Parser a -> String -> [a]
-runParser p s = do
-  (a, m) <- runStateT p (Just s)
-  guard (isNothing m)
-  return a
+--runParser :: Parser a -> String -> [a]
+--runParser p s = do
+--  (a, m) <- runStateT p (Just s)
+--  guard (isNothing m)
+--  return a
 
       

@@ -20,27 +20,35 @@ import Data.Maybe (maybeToList)
 import Data.Functor (void)
 import Data.Functor.Compose (Compose(..))
 import Data.Function ((&))
-import Control.Monad.State.Lazy (StateT, State, lift, modify, evalStateT, MonadState)
+import Control.Monad.State.Lazy (StateT, State, lift, modify, evalStateT, runStateT, MonadState, evalState, state)
 import Control.Monad (join, MonadPlus)
 import Parser
-import Control.Lens (Lens', (%=), use)
-import Data.Map (insert, Map)
+import Control.Lens (Lens', (%=), use, uses)
+import Data.Map as Map (insert, Map, lookup)
 
 data InputFile = InputFile String
 data OutputFile = OutputFile String
 
-type CountingInstructions = StateT Int 
+type Parser = StateT FirstPassState []
+type SymbolTable = Map String String
 
-class WithInstructionCount s where
-  instructionCountLens :: Lens' s Int
+instructionCountLens :: Lens' FirstPassState Int
+instructionCountLens = undefined
 
-instance WithSource ParseState where
-  sourceLens f (ParseState i s) = fmap (ParseState i) $ f s
+firstPassSymbolTableLens :: Lens' FirstPassState SymbolTable
+firstPassSymbolTableLens = undefined
 
-instance WithInstructionCount ParseState where
-  instructionCountLens f (ParseState i s) = fmap ( (&) s . ParseState) $ f i
+instance WithSource FirstPassState where
+  sourceLens f s = fmap (\so -> s{source = so}) $ f $ source s
 
-data ParseState = ParseState Int (Maybe String)
+data FirstPassState = FirstPassState { instructionCount :: Int, firstPassSymbolTable :: SymbolTable, source :: Maybe String }
+data SecondPassState = SecondPassState { nextRamAddress :: Int, secondPassSymbolTable :: SymbolTable}
+
+initialFirstPassState :: String -> FirstPassState
+initialFirstPassState = undefined
+
+initialSecondPassState :: SymbolTable -> SecondPassState
+initialSecondPassState = undefined
 
 printFile :: InputFile -> OutputFile -> IO ()
 printFile (InputFile input) (OutputFile output) = 
@@ -55,51 +63,71 @@ filterWhitespace :: String -> String
 filterWhitespace = filter (/= ' ')
       
 assemble :: String -> Maybe String
-assemble = headMay . map (intercalate "\n") . runParser (evalStateT instructions 0) . filterWhitespace  where
-  headMay (a:_) = pure a
-  headMay [] = empty
+assemble = fmap (intercalate "\n" . uncurry evalState . fmap initialSecondPassState) 
+  . headMay 
+  . (map . fmap) firstPassSymbolTable 
+  . runStateT (getCompose  instructions) 
+  . initialFirstPassState 
+  . filterWhitespace  
 
-instructions :: CountingInstructions Parser [String]
+firstPass :: FirstPassState -> Maybe (State SecondPassState [String], SymbolTable)
+firstPass = headMay . (map . fmap) firstPassSymbolTable . runStateT (getCompose  instructions)
+
+headMay :: [a] -> Maybe a
+headMay (a:_) = Just a
+headMay [] = Nothing
+
+type Assembler = Compose Parser (State SecondPassState)
+
+instructions :: Assembler [String]
 instructions = (>>= maybeToList) <$> many line 
 
-line :: CountingInstructions Parser (Maybe String)
-line = fmap join (optional codePortion) <* lift (optional comment) <* lift endOfLine 
+line :: Assembler (Maybe String)
+line = fmap join (optional codePortion) <* liftParser (optional comment) <* liftParser endOfLine 
+
+liftParser :: Parser a -> Assembler a
+liftParser = Compose . fmap pure
 
 comment :: Parser ()
 comment = void $ string "//" *> many (ifChar (/= '\n'))
 
-codePortion :: CountingInstructions Parser (Maybe String)
-codePortion = Just <$> instruction
+codePortion :: Assembler (Maybe String)
+codePortion = (Just <$> instruction) <|> (Nothing <$ liftParser label)
 
-instruction :: CountingInstructions Parser String
-instruction = lift (ainstruction <|> cinstruction)  <* modify (+1)
+instruction :: Assembler String
+instruction = (ainstruction <|> liftParser cinstruction) <* (liftParser $ instructionCountLens %= (+1))
 
-instruction2 :: (MonadState s m, MonadPlus m, WithSource s, WithInstructionCount s) => m String
-instruction2 = (ainstruction <|> cinstruction)  <* (instructionCountLens %= (+1))
-
-instructionCount :: (MonadState s m, MonadPlus m, WithInstructionCount s) => m Int
-instructionCount = use instructionCountLens
-
-label :: (MonadState s m, MonadPlus m, WithSource s, WithInstructionCount s, MonadState (Map String Int) n) => Compose m n ()
-label = Compose $ do
+label :: Parser ()
+label = do
   s <- char '(' *> symbol <* char ')'
-  i <- instructionCount
-  return $ modify $ insert s (i+1)
+  i <- use instructionCountLens
+  void $ traverse (\x -> firstPassSymbolTableLens %= insert s x) (binaryValue $ i+1) 
 
-symbol :: (MonadState s m, MonadPlus m, WithSource s) => m String
+symbol :: Parser String
 symbol = (:) <$> charIn validFirstLetters <*> many (charIn validSubsequentLetters) where
   validFirstLetters = ['a'..'z'] <> ['A'..'Z'] <> ['.', '_', ':', '$']
   validSubsequentLetters = validFirstLetters <> ['0'..'9']
 
-ainstruction :: (MonadState s m, MonadPlus m, WithSource s) => m String
-ainstruction = do
-  v <- char '@' *> some digit
-  case binaryValue v of
+ainstruction :: Assembler String
+ainstruction = liftParser (char '@') *> (liftParser constant <|> symbolValue)
+
+constant :: Parser String
+constant = do
+  v <- some digit
+  case readMaybe v >>= binaryValue of
     Nothing -> empty
     Just a -> return $ "0" <> a 
 
-binaryValue :: String -> Maybe String
-binaryValue s = readMaybe s >>= pad .  toBin where
+symbolValue :: Assembler String
+symbolValue = Compose $ do
+  s <- symbol
+  maybeValue <- uses firstPassSymbolTableLens (Map.lookup s)
+  return $ case maybeValue of
+    Just value -> pure value
+    Nothing -> state undefined
+
+binaryValue :: Int -> Maybe String
+binaryValue = pad .  toBin where
   pad b = case 15 - (length b) of
     n | n >= 0 -> Just $ replicate n '0' <> b
       | otherwise -> Nothing
@@ -107,14 +135,14 @@ binaryValue s = readMaybe s >>= pad .  toBin where
 toBin :: Int -> String
 toBin d = showIntAtBase 2 intToDigit d ""
 
-cinstruction :: (MonadState s m, MonadPlus m, WithSource s) => m String
+cinstruction :: Parser String
 cinstruction = do
   d <- dest <* char '=' <|> return "000"
   c <- comp
   j <- char ';' *> jump <|> return "000"
   return $ "111" <> c <> d <> j 
 
-dest :: (MonadState s m, MonadPlus m, WithSource s) => m String 
+dest :: Parser String 
 dest = foldr f empty
   [ ("001", "M")
   , ("010", "D") 
@@ -125,7 +153,7 @@ dest = foldr f empty
   , ("111", "AMD")
   ] where f (code, symbol) rest = code <$ string symbol <|> rest
 
-comp :: (MonadState s m, MonadPlus m, WithSource s) => m String 
+comp :: Parser String 
 comp = dComp <|> mComp where
   dComp = fmap ('0':) $ comp' "A"
   mComp = fmap ('1':) $ comp' "M"
@@ -149,7 +177,7 @@ comp = dComp <|> mComp where
     , ("010101", "D|" <> aOrM) 
     ] where f (code, symbol) = code <$ string symbol 
 
-jump :: (MonadState s m, MonadPlus m, WithSource s) => m String 
+jump :: Parser String 
 jump = foldr f empty
   [ ("001", "JGT")
   , ("010", "JEQ") 
