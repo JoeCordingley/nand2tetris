@@ -19,12 +19,10 @@ import Data.List.NonEmpty (NonEmpty(..))
 import Data.Maybe (maybeToList, fromJust)
 import Data.Functor (void)
 import Data.Functor.Compose (Compose(..))
-import Data.Function ((&))
-import Control.Monad.State.Lazy (StateT, State, lift, modify, evalStateT, runStateT, MonadState, evalState, state, gets)
-import Control.Monad (join, MonadPlus)
+import Control.Monad.State.Lazy (StateT, State, modify, runStateT, evalState, gets)
+import Control.Monad (join)
 import Parser
-import Control.Lens (Lens', (%=), use, uses, over, view)
-import Data.Map as Map (insert, Map, lookup)
+import Data.Map as Map (insert, Map, lookup, fromList)
 
 data InputFile = InputFile String
 data OutputFile = OutputFile String
@@ -32,17 +30,6 @@ data OutputFile = OutputFile String
 type Parser = StateT FirstPassState []
 type SymbolTable = Map String String
 
-incrementInstructionCount :: FirstPassState -> FirstPassState
-incrementInstructionCount = undefined
-
-firstPassSymbolTableLens :: Lens' FirstPassState SymbolTable
-firstPassSymbolTableLens = undefined
-
-secondPassSymbolTableLens :: Lens' SecondPassState SymbolTable
-secondPassSymbolTableLens = undefined
-
-nextRamAddressLens :: Lens' SecondPassState Int
-nextRamAddressLens = undefined
 
 instance WithSource FirstPassState where
   sourceLens f s = fmap (\so -> s{source = so}) $ f $ source s
@@ -51,10 +38,17 @@ data FirstPassState = FirstPassState { instructionCount :: Int, firstPassSymbolT
 data SecondPassState = SecondPassState { nextRamAddress :: Int, secondPassSymbolTable :: SymbolTable}
 
 initialFirstPassState :: String -> FirstPassState
-initialFirstPassState = undefined
+initialFirstPassState s = FirstPassState {instructionCount = 0, firstPassSymbolTable = initialSymbolTable, source = Just s}
+
+initialSymbolTable :: Map String String
+initialSymbolTable = fmap (fromJust . binaryValue) . Map.fromList  $
+  [ ("SP", 0)
+  , ("LCL", 1)
+  , ("ARG", 2)
+  ] <> map rvalue [0..15] <> [("SCREEN", 16384), ("KBD", )]
 
 initialSecondPassState :: SymbolTable -> SecondPassState
-initialSecondPassState = undefined
+initialSecondPassState symbolTable = SecondPassState {nextRamAddress = 16, secondPassSymbolTable = symbolTable}
 
 printFile :: InputFile -> OutputFile -> IO ()
 printFile (InputFile input) (OutputFile output) = 
@@ -76,8 +70,8 @@ assemble = fmap (intercalate "\n" . uncurry evalState . fmap initialSecondPassSt
   . initialFirstPassState 
   . filterWhitespace  
 
-firstPass :: FirstPassState -> Maybe (State SecondPassState [String], SymbolTable)
-firstPass = headMay . (map . fmap) firstPassSymbolTable . runStateT (getCompose  instructions)
+--firstPass :: FirstPassState -> Maybe (State SecondPassState [String], SymbolTable)
+--firstPass = headMay . (map . fmap) firstPassSymbolTable . runStateT (getCompose  instructions)
 
 headMay :: [a] -> Maybe a
 headMay (a:_) = Just a
@@ -101,14 +95,16 @@ codePortion :: Assembler (Maybe String)
 codePortion = (Just <$> instruction) <|> (Nothing <$ liftParser label)
 
 instruction :: Assembler String
-instruction = (ainstruction <|> liftParser cinstruction) <* (liftParser $ modify $ incrementInstructionCount)
+instruction = (ainstruction <|> liftParser cinstruction) <* (liftParser $ modify $ incrementInstructionCount) where
+  incrementInstructionCount s = s{instructionCount = instructionCount s + 1}
 
 label :: Parser ()
 label = do
   s <- char '(' *> symbol <* char ')'
   i <- gets instructionCount
   let bin = fromJust $ binaryValue (i+1)
-  modify $ over firstPassSymbolTableLens (insert s bin) 
+  modify $ overSymbolTable (insert s bin) where
+    overSymbolTable f s = s{firstPassSymbolTable = f (firstPassSymbolTable s)}
 
 symbol :: Parser String
 symbol = (:) <$> charIn validFirstLetters <*> many (charIn validSubsequentLetters) where
@@ -123,7 +119,7 @@ constant = do
   v <- some digit
   case readMaybe v >>= binaryValue of
     Nothing -> empty
-    Just a -> return $ "0" <> a 
+    Just a -> return a 
 
 symbolValue :: Assembler String
 symbolValue = Compose $ do
@@ -135,14 +131,17 @@ symbolValue = Compose $ do
       Nothing -> do
         currentAddress <- gets nextRamAddress 
         let bin = fromJust $ binaryValue currentAddress
-        modify $ over secondPassSymbolTableLens (Map.insert s bin) 
-        modify $ over nextRamAddressLens (+1)
+        modify $ overSymbolTable (Map.insert s bin) 
+        modify $ overNextRamAddress (+1)
         return bin
+      where
+        overSymbolTable f s = s{secondPassSymbolTable = f (secondPassSymbolTable s)}
+        overNextRamAddress f s = s{nextRamAddress = f (nextRamAddress s)}
 
 binaryValue :: Int -> Maybe String
 binaryValue = pad .  toBin where
   pad b = case 15 - (length b) of
-    n | n >= 0 -> Just $ replicate n '0' <> b
+    n | n >= 0 -> Just $ replicate (n + 1) '0' <> b
       | otherwise -> Nothing
 
 toBin :: Int -> String
@@ -164,7 +163,7 @@ dest = foldr f empty
   , ("101", "AM")
   , ("110", "AD")
   , ("111", "AMD")
-  ] where f (code, symbol) rest = code <$ string symbol <|> rest
+  ] where f (code, token) rest = code <$ string token <|> rest
 
 comp :: Parser String 
 comp = dComp <|> mComp where
@@ -188,7 +187,8 @@ comp = dComp <|> mComp where
     , ("000111", aOrM <> "-D") 
     , ("000000", "D&" <> aOrM) 
     , ("010101", "D|" <> aOrM) 
-    ] where f (code, symbol) = code <$ string symbol 
+    ] where f (code, token) = code <$ string token 
+
 
 jump :: Parser String 
 jump = foldr f empty
@@ -199,5 +199,5 @@ jump = foldr f empty
   , ("101", "JNE") 
   , ("110", "JLE") 
   , ("111", "JMP") 
-  ] where f (code, symbol) rest = code <$ string symbol <|> rest
+  ] where f (code, token) rest = code <$ string token <|> rest
 

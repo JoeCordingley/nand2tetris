@@ -15,12 +15,11 @@ module Parser
   , WithSource(..)
   ) where
 
-import Control.Monad.State.Lazy (StateT(..), MonadState)
-import Control.Monad (guard, MonadPlus)
+import Control.Monad.State.Lazy (MonadState)
+import Control.Monad (MonadPlus)
 import Data.List (uncons)
 import Control.Applicative (Alternative, (<|>), empty)
 import Data.Char (isDigit)
-import Data.Maybe (isNothing)
 import Data.Functor (void)
 import Control.Lens (Lens', use, (.=))
 
