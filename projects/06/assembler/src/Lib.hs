@@ -45,7 +45,8 @@ initialSymbolTable = fmap (fromJust . binaryValue) . Map.fromList  $
   [ ("SP", 0)
   , ("LCL", 1)
   , ("ARG", 2)
-  ] <> map rvalue [0..15] <> [("SCREEN", 16384), ("KBD", )]
+  ] <> map rvalue [0..15] <> [("SCREEN", 16384), ("KBD", 24576)]
+  where rvalue n = ("R" <> show n, n)
 
 initialSecondPassState :: SymbolTable -> SecondPassState
 initialSecondPassState symbolTable = SecondPassState {nextRamAddress = 16, secondPassSymbolTable = symbolTable}
@@ -55,13 +56,13 @@ printFile (InputFile input) (OutputFile output) =
   withFile input ReadMode $ \i -> 
     withFile output WriteMode $ \o -> do
       contents <- hGetContents i 
+      putStrLn contents
       case assemble $ contents of
-        Just assembled -> hPutStrLn o assembled *> putStrLn "success"
+        Just assembled -> putStrLn assembled *> hPutStrLn o assembled *> putStrLn "success"
         Nothing -> putStrLn "failure"
 
 filterWhitespace :: String -> String
 filterWhitespace = filter (/= ' ')
-      
 assemble :: String -> Maybe String
 assemble = fmap (intercalate "\n" . uncurry evalState . fmap initialSecondPassState) 
   . headMay 
