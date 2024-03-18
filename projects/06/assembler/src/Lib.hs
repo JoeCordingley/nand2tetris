@@ -3,7 +3,6 @@ module Lib
     , InputFile(..)
     , OutputFile(..)
     , assemble
-    , line
     ) where
 
 import System.IO (withFile, IOMode(ReadMode, WriteMode), hGetContents, hPutStrLn)
@@ -12,8 +11,7 @@ import Numeric (showIntAtBase)
 import Data.Char (intToDigit)
 import Control.Applicative (many, empty, some, (<|>))
 import Data.List (intercalate)
-import Data.List.NonEmpty (NonEmpty(..))
-import Data.Maybe (maybeToList, fromJust)
+import Data.Maybe (fromJust, catMaybes)
 import Data.Functor (void)
 import Data.Functor.Compose (Compose(..))
 import Control.Monad.State.Lazy (State, modify, evalState, gets, evalStateT, runState)
@@ -28,8 +26,6 @@ type SymbolTable = Map String String
 
 data FirstPassState = FirstPassState { instructionCount :: Int, firstPassSymbolTable :: SymbolTable}
 data SecondPassState = SecondPassState { nextRamAddress :: Int, secondPassSymbolTable :: SymbolTable}
-
-  
 
 initialFirstPassState :: FirstPassState
 initialFirstPassState = FirstPassState {instructionCount = 0, firstPassSymbolTable = initialSymbolTable}
@@ -58,8 +54,9 @@ printFile (InputFile input) (OutputFile output) =
 
 filterWhitespace :: String -> String
 filterWhitespace = filter (/= ' ')
+
 assemble :: String -> Maybe String
-assemble = fmap (intercalate "\n") . fmap runSecondPass . fmap runFirstPass . parse . filterWhitespace where
+assemble = fmap (intercalate "\n" . runSecondPass . runFirstPass ) . parse . filterWhitespace where
   parse = headMay . evalStateT (getCompose instructions) . Just
   runFirstPass = flip runState initialFirstPassState . getCompose 
   runSecondPass = uncurry evalState . fmap (initialSecondPassState . firstPassSymbolTable)
@@ -73,7 +70,7 @@ type SecondPass = State SecondPassState
 type Assembler = Compose Parser (Compose FirstPass SecondPass)
 
 instructions :: Assembler [String]
-instructions = (>>= maybeToList) <$> many line 
+instructions = catMaybes <$> many line 
 
 line :: Assembler (Maybe String)
 line = fmap join (optional codePortion) <* liftOuter (optional comment) <* liftOuter endOfLine 
@@ -98,17 +95,6 @@ label = Compose $ do
     where
       overSymbolTable f s = s{firstPassSymbolTable = f (firstPassSymbolTable s)}
 
-liftOuter :: (Applicative g, Functor f) => f a -> Compose f g a
-liftOuter = Compose . fmap pure
-
-liftInner :: Applicative f => g a -> Compose f g a
-liftInner = Compose . pure
-
-symbol :: Parser String
-symbol = (:) <$> charIn validFirstLetters <*> many (charIn validSubsequentLetters) where
-  validFirstLetters = ['a'..'z'] <> ['A'..'Z'] <> ['.', '_', ':', '$']
-  validSubsequentLetters = validFirstLetters <> ['0'..'9']
-
 ainstruction :: Assembler String
 ainstruction = liftOuter (char '@') *> (liftOuter constant <|> symbolValue)
 
@@ -129,12 +115,22 @@ symbolValue = Compose $ do
       Nothing -> do
         currentAddress <- gets nextRamAddress 
         let bin = fromJust $ binaryValue currentAddress
-        modify $ overSymbolTable (Map.insert s bin) 
-        modify $ overNextRamAddress (+1)
+        modify $ overSymbolTable (Map.insert s bin) . overNextRamAddress (+1)
         return bin
       where
         overSymbolTable f s = s{secondPassSymbolTable = f (secondPassSymbolTable s)}
         overNextRamAddress f s = s{nextRamAddress = f (nextRamAddress s)}
+
+liftOuter :: (Applicative g, Functor f) => f a -> Compose f g a
+liftOuter = Compose . fmap pure
+
+liftInner :: Applicative f => g a -> Compose f g a
+liftInner = Compose . pure
+
+symbol :: Parser String
+symbol = (:) <$> charIn validFirstLetters <*> many (charIn validSubsequentLetters) where
+  validFirstLetters = ['a'..'z'] <> ['A'..'Z'] <> ['.', '_', ':', '$']
+  validSubsequentLetters = validFirstLetters <> ['0'..'9']
 
 binaryValue :: Int -> Maybe String
 binaryValue = pad .  toBin where
@@ -153,7 +149,7 @@ cinstruction = do
   return $ "111" <> c <> d <> j 
 
 dest :: Parser String 
-dest = foldr f empty
+dest = foldr (uncurry foldParse) empty
   [ ("001", "M")
   , ("010", "D") 
   , ("011", "MD") 
@@ -161,14 +157,15 @@ dest = foldr f empty
   , ("101", "AM")
   , ("110", "AD")
   , ("111", "AMD")
-  ] where f (code, token) rest = code <$ string token <|> rest
+  ] 
 
 comp :: Parser String 
 comp = dComp <|> mComp where
   dComp = fmap ('0':) $ comp' "A"
   mComp = fmap ('1':) $ comp' "M"
-  comp' aOrM = foldr1 (<|>) . fmap f $ ("101010", "0") :|
-    [ ("111111", "1")
+  comp' aOrM = foldr (uncurry foldParse) empty $ 
+    [ ("101010", "0") 
+    , ("111111", "1")
     , ("111010", "-1")
     , ("001100", "D") 
     , ("110000", aOrM)
@@ -185,11 +182,10 @@ comp = dComp <|> mComp where
     , ("000111", aOrM <> "-D") 
     , ("000000", "D&" <> aOrM) 
     , ("010101", "D|" <> aOrM) 
-    ] where f (code, token) = code <$ string token 
-
+    ] 
 
 jump :: Parser String 
-jump = foldr f empty
+jump = foldr (uncurry foldParse) empty
   [ ("001", "JGT")
   , ("010", "JEQ") 
   , ("011", "JGE") 
@@ -197,5 +193,7 @@ jump = foldr f empty
   , ("101", "JNE") 
   , ("110", "JLE") 
   , ("111", "JMP") 
-  ] where f (code, token) rest = code <$ string token <|> rest
+  ] 
 
+foldParse :: a -> String -> Parser a -> Parser a
+foldParse a s p = a <$ string s <|> p
