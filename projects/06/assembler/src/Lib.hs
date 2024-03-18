@@ -1,6 +1,5 @@
 {-# Language FlexibleContexts #-}
 
-
 module Lib
     ( printFile
     , InputFile(..)
@@ -30,7 +29,6 @@ data OutputFile = OutputFile String
 type Parser = StateT FirstPassState []
 type SymbolTable = Map String String
 
-
 instance WithSource FirstPassState where
   sourceLens f s = fmap (\so -> s{source = so}) $ f $ source s
 
@@ -45,6 +43,8 @@ initialSymbolTable = fmap (fromJust . binaryValue) . Map.fromList  $
   [ ("SP", 0)
   , ("LCL", 1)
   , ("ARG", 2)
+  , ("THIS", 3)
+  , ("THAT", 4)
   ] <> map rvalue [0..15] <> [("SCREEN", 16384), ("KBD", 24576)]
   where rvalue n = ("R" <> show n, n)
 
@@ -56,9 +56,8 @@ printFile (InputFile input) (OutputFile output) =
   withFile input ReadMode $ \i -> 
     withFile output WriteMode $ \o -> do
       contents <- hGetContents i 
-      putStrLn contents
       case assemble $ contents of
-        Just assembled -> putStrLn assembled *> hPutStrLn o assembled *> putStrLn "success"
+        Just assembled -> hPutStrLn o assembled *> putStrLn "success"
         Nothing -> putStrLn "failure"
 
 filterWhitespace :: String -> String
@@ -70,9 +69,6 @@ assemble = fmap (intercalate "\n" . uncurry evalState . fmap initialSecondPassSt
   . runStateT (getCompose  instructions) 
   . initialFirstPassState 
   . filterWhitespace  
-
---firstPass :: FirstPassState -> Maybe (State SecondPassState [String], SymbolTable)
---firstPass = headMay . (map . fmap) firstPassSymbolTable . runStateT (getCompose  instructions)
 
 headMay :: [a] -> Maybe a
 headMay (a:_) = Just a
@@ -103,7 +99,7 @@ label :: Parser ()
 label = do
   s <- char '(' *> symbol <* char ')'
   i <- gets instructionCount
-  let bin = fromJust $ binaryValue (i+1)
+  let bin = fromJust $ binaryValue i
   modify $ overSymbolTable (insert s bin) where
     overSymbolTable f s = s{firstPassSymbolTable = f (firstPassSymbolTable s)}
 

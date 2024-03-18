@@ -29,8 +29,6 @@ class WithSource s where
 instance WithSource (Maybe String) where
   sourceLens = id
 
---type Parser = StateT (Maybe String) []
-
 endOfLine :: (MonadState s m, MonadPlus m, WithSource s) => m ()
 endOfLine = void (char '\n') <|> eof
 
@@ -73,10 +71,3 @@ digit = ifChar isDigit
 optional :: Alternative m => m a -> m (Maybe a)
 optional p = fmap Just p <|> pure Nothing
 
---runParser :: Parser a -> String -> [a]
---runParser p s = do
---  (a, m) <- runStateT p (Just s)
---  guard (isNothing m)
---  return a
-
-      
