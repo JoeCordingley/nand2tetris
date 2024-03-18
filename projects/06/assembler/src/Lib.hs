@@ -1,5 +1,3 @@
-{-# Language FlexibleContexts #-}
-
 module Lib
     ( printFile
     , InputFile(..)
@@ -18,7 +16,7 @@ import Data.List.NonEmpty (NonEmpty(..))
 import Data.Maybe (maybeToList, fromJust)
 import Data.Functor (void)
 import Data.Functor.Compose (Compose(..))
-import Control.Monad.State.Lazy (StateT, State, modify, runStateT, evalState, gets)
+import Control.Monad.State.Lazy (State, modify, evalState, gets, evalStateT, runState)
 import Control.Monad (join)
 import Parser
 import Data.Map as Map (insert, Map, lookup, fromList)
@@ -26,17 +24,15 @@ import Data.Map as Map (insert, Map, lookup, fromList)
 data InputFile = InputFile String
 data OutputFile = OutputFile String
 
-type Parser = StateT FirstPassState []
 type SymbolTable = Map String String
 
-instance WithSource FirstPassState where
-  sourceLens f s = fmap (\so -> s{source = so}) $ f $ source s
-
-data FirstPassState = FirstPassState { instructionCount :: Int, firstPassSymbolTable :: SymbolTable, source :: Maybe String }
+data FirstPassState = FirstPassState { instructionCount :: Int, firstPassSymbolTable :: SymbolTable}
 data SecondPassState = SecondPassState { nextRamAddress :: Int, secondPassSymbolTable :: SymbolTable}
 
-initialFirstPassState :: String -> FirstPassState
-initialFirstPassState s = FirstPassState {instructionCount = 0, firstPassSymbolTable = initialSymbolTable, source = Just s}
+  
+
+initialFirstPassState :: FirstPassState
+initialFirstPassState = FirstPassState {instructionCount = 0, firstPassSymbolTable = initialSymbolTable}
 
 initialSymbolTable :: Map String String
 initialSymbolTable = fmap (fromJust . binaryValue) . Map.fromList  $
@@ -63,45 +59,50 @@ printFile (InputFile input) (OutputFile output) =
 filterWhitespace :: String -> String
 filterWhitespace = filter (/= ' ')
 assemble :: String -> Maybe String
-assemble = fmap (intercalate "\n" . uncurry evalState . fmap initialSecondPassState) 
-  . headMay 
-  . (map . fmap) firstPassSymbolTable 
-  . runStateT (getCompose  instructions) 
-  . initialFirstPassState 
-  . filterWhitespace  
+assemble = fmap (intercalate "\n") . fmap runSecondPass . fmap runFirstPass . parse . filterWhitespace where
+  parse = headMay . evalStateT (getCompose instructions) . Just
+  runFirstPass = flip runState initialFirstPassState . getCompose 
+  runSecondPass = uncurry evalState . fmap (initialSecondPassState . firstPassSymbolTable)
 
 headMay :: [a] -> Maybe a
 headMay (a:_) = Just a
 headMay [] = Nothing
 
-type Assembler = Compose Parser (State SecondPassState)
+type FirstPass = State FirstPassState
+type SecondPass = State SecondPassState
+type Assembler = Compose Parser (Compose FirstPass SecondPass)
 
 instructions :: Assembler [String]
 instructions = (>>= maybeToList) <$> many line 
 
 line :: Assembler (Maybe String)
-line = fmap join (optional codePortion) <* liftParser (optional comment) <* liftParser endOfLine 
-
-liftParser :: Parser a -> Assembler a
-liftParser = Compose . fmap pure
+line = fmap join (optional codePortion) <* liftOuter (optional comment) <* liftOuter endOfLine 
 
 comment :: Parser ()
 comment = void $ string "//" *> many (ifChar (/= '\n'))
 
 codePortion :: Assembler (Maybe String)
-codePortion = (Just <$> instruction) <|> (Nothing <$ liftParser label)
+codePortion = (Just <$> instruction) <|> (Nothing <$ label)
 
 instruction :: Assembler String
-instruction = (ainstruction <|> liftParser cinstruction) <* (liftParser $ modify $ incrementInstructionCount) where
+instruction = (ainstruction <|> liftOuter cinstruction) <* (liftInner . liftOuter . modify $ incrementInstructionCount) where
   incrementInstructionCount s = s{instructionCount = instructionCount s + 1}
 
-label :: Parser ()
-label = do
+label :: Assembler ()
+label = Compose $ do
   s <- char '(' *> symbol <* char ')'
-  i <- gets instructionCount
-  let bin = fromJust $ binaryValue i
-  modify $ overSymbolTable (insert s bin) where
-    overSymbolTable f s = s{firstPassSymbolTable = f (firstPassSymbolTable s)}
+  pure $ liftOuter $ do
+    i <- gets instructionCount
+    let bin = fromJust $ binaryValue i
+    modify $ overSymbolTable (insert s bin) 
+    where
+      overSymbolTable f s = s{firstPassSymbolTable = f (firstPassSymbolTable s)}
+
+liftOuter :: (Applicative g, Functor f) => f a -> Compose f g a
+liftOuter = Compose . fmap pure
+
+liftInner :: Applicative f => g a -> Compose f g a
+liftInner = Compose . pure
 
 symbol :: Parser String
 symbol = (:) <$> charIn validFirstLetters <*> many (charIn validSubsequentLetters) where
@@ -109,7 +110,7 @@ symbol = (:) <$> charIn validFirstLetters <*> many (charIn validSubsequentLetter
   validSubsequentLetters = validFirstLetters <> ['0'..'9']
 
 ainstruction :: Assembler String
-ainstruction = liftParser (char '@') *> (liftParser constant <|> symbolValue)
+ainstruction = liftOuter (char '@') *> (liftOuter constant <|> symbolValue)
 
 constant :: Parser String
 constant = do
@@ -121,7 +122,7 @@ constant = do
 symbolValue :: Assembler String
 symbolValue = Compose $ do
   s <- symbol
-  return $ do
+  return $ liftInner $ do
     maybeValue <- gets $ (Map.lookup s) . secondPassSymbolTable
     case maybeValue of
       Just value -> pure value

@@ -1,7 +1,3 @@
-{-# Language FlexibleContexts #-}
-{-# Language FlexibleInstances #-}
-{-# Language RankNTypes #-}
-
 module Parser
   ( endOfLine
   , char
@@ -12,60 +8,52 @@ module Parser
   , optional
   , ifChar
   , charIn
-  , WithSource(..)
+  , Parser
   ) where
 
-import Control.Monad.State.Lazy (MonadState)
-import Control.Monad (MonadPlus)
+import Control.Monad.State.Lazy (StateT(..))
 import Data.List (uncons)
 import Control.Applicative (Alternative, (<|>), empty)
 import Data.Char (isDigit)
 import Data.Functor (void)
-import Control.Lens (Lens', use, (.=))
+import Data.Maybe (maybeToList)
 
-class WithSource s where
-  sourceLens :: Lens' s (Maybe String)
+type Parser = StateT (Maybe String) []
 
-instance WithSource (Maybe String) where
-  sourceLens = id
-
-endOfLine :: (MonadState s m, MonadPlus m, WithSource s) => m ()
+endOfLine :: Parser ()
 endOfLine = void (char '\n') <|> eof
 
-eof :: (MonadState s m, MonadPlus m, WithSource s) => m ()
-eof = do
-  s <- use sourceLens
-  case s of
-    Just "" -> sourceLens .= Nothing
-    _ -> empty
+eof :: Parser ()
+eof = StateT $ maybeToList . f where
+  f m = do
+    s <- m
+    case s of
+      "" -> Just ((), Nothing)
+      _  -> Nothing
 
-string :: (MonadState s m, MonadPlus m, WithSource s) => String -> m String
+string :: String -> Parser String
 string = traverse char
 
-char :: (MonadState s m, MonadPlus m, WithSource s) => Char -> m Char
+char :: Char -> Parser Char
 char = ifChar . (==)
 
-ifChar :: (MonadState s m, MonadPlus m, WithSource s) => (Char -> Bool) -> m Char
+ifChar :: (Char -> Bool) -> Parser Char
 ifChar p = anyChar >>= guarded p 
 
-charIn :: (MonadState s m, MonadPlus m, WithSource s) => [Char] -> m Char
+charIn :: [Char] -> Parser Char
 charIn chars = ifChar $ flip elem chars
 
 guarded :: Alternative f => (a -> Bool) -> a -> f a
 guarded p a = if p a then pure a else empty
 
-anyChar :: (MonadState s m, MonadPlus m, WithSource s) => m Char
-anyChar = do
-  maybeString <- use sourceLens
-  (c, rest) <- liftMaybe $ maybeString >>= uncons
-  sourceLens .= Just rest
-  return c
+anyChar :: Parser Char
+anyChar = StateT $ maybeToList . f where
+  f m = do
+    s <- m
+    (a, rest) <- uncons s
+    return (a, Just rest)
 
-liftMaybe :: Alternative f => Maybe a -> f a
-liftMaybe Nothing = empty
-liftMaybe (Just a) = pure a
-
-digit :: (MonadState s m, MonadPlus m, WithSource s) => m Char
+digit :: Parser Char
 digit = ifChar isDigit
 
 optional :: Alternative m => m a -> m (Maybe a)
