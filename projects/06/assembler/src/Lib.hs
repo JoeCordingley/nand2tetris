@@ -14,7 +14,7 @@ import Data.List (intercalate)
 import Data.Maybe (fromJust, catMaybes)
 import Data.Functor (void)
 import Data.Functor.Compose (Compose(..))
-import Control.Monad.State.Lazy (State, modify, evalState, gets, evalStateT, runState)
+import Control.Monad.State.Lazy (State, modify, evalState, gets, evalStateT, runState, state)
 import Control.Monad (join)
 import Parser
 import Data.Map as Map (insert, Map, lookup, fromList)
@@ -112,14 +112,11 @@ symbolValue = Compose $ do
     maybeValue <- gets $ (Map.lookup s) . secondPassSymbolTable
     case maybeValue of
       Just value -> pure value
-      Nothing -> do
-        currentAddress <- gets nextRamAddress 
-        let bin = fromJust $ binaryValue currentAddress
-        modify $ overSymbolTable (Map.insert s bin) . overNextRamAddress (+1)
-        return bin
+      Nothing -> state (nextAddress s)
       where
-        overSymbolTable f s = s{secondPassSymbolTable = f (secondPassSymbolTable s)}
-        overNextRamAddress f s = s{nextRamAddress = f (nextRamAddress s)}
+        nextAddress s (SecondPassState currentAddress symbols) = (bin, SecondPassState{nextRamAddress = currentAddress + 1, secondPassSymbolTable = Map.insert s bin symbols}) where
+          bin = fromJust $ binaryValue currentAddress
+          
 
 liftOuter :: (Applicative g, Functor f) => f a -> Compose f g a
 liftOuter = Compose . fmap pure
