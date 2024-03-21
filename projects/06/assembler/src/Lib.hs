@@ -88,10 +88,9 @@ instruction = (ainstruction <|> liftOuter cinstruction) <* (liftInner . liftOute
 label :: Assembler ()
 label = Compose $ do
   s <- char '(' *> symbol <* char ')'
-  pure $ liftOuter $ do
-    i <- gets instructionCount
-    let bin = fromJust $ binaryValue i
-    modify $ overSymbolTable (insert s bin) 
+  pure . liftOuter $ do
+    i <- gets (fromJust . binaryValue . instructionCount)
+    modify $ overSymbolTable (insert s i) 
     where
       overSymbolTable f s = s{firstPassSymbolTable = f (firstPassSymbolTable s)}
 
@@ -116,7 +115,6 @@ symbolValue = Compose $ do
       where
         nextAddress s (SecondPassState currentAddress symbols) = (bin, SecondPassState{nextRamAddress = currentAddress + 1, secondPassSymbolTable = Map.insert s bin symbols}) where
           bin = fromJust $ binaryValue currentAddress
-          
 
 liftOuter :: (Applicative g, Functor f) => f a -> Compose f g a
 liftOuter = Compose . fmap pure
