@@ -4,7 +4,7 @@ cabal-version: 2.2
 --
 -- see: https://github.com/sol/hpack
 
-name:           assembler
+name:           compilers
 version:        0.1.0.0
 description:    Please see the README on GitHub at <https://github.com/githubuser/assembler#readme>
 homepage:       https://github.com/githubuser/assembler#readme
@@ -28,9 +28,9 @@ library
       Lib
       Parser
   other-modules:
-      Paths_assembler
+      Paths_compilers
   autogen-modules:
-      Paths_assembler
+      Paths_compilers
   hs-source-dirs:
       src
   ghc-options: -Wall -Wcompat -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wmissing-export-lists -Wmissing-home-modules -Wpartial-fields -Wredundant-constraints
@@ -43,39 +43,58 @@ library
     , regex-tdfa
   default-language: Haskell2010
 
-executable assembler-exe
+executable assembler
   main-is: Main.hs
   other-modules:
-      Paths_assembler
+      Paths_compilers
   autogen-modules:
-      Paths_assembler
+      Paths_compilers
   hs-source-dirs:
-      app
+      assembler
   ghc-options: -Wall -Wcompat -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wmissing-export-lists -Wmissing-home-modules -Wpartial-fields -Wredundant-constraints -threaded -rtsopts -with-rtsopts=-N
   build-depends:
       HUnit
-    , assembler
     , base >=4.7 && <5
+    , compilers
     , containers
     , mtl
     , optparse-applicative
     , regex-tdfa
   default-language: Haskell2010
 
-test-suite assembler-test
+executable vm-translator
+  main-is: Main.hs
+  other-modules:
+      Paths_compilers
+  autogen-modules:
+      Paths_compilers
+  hs-source-dirs:
+      vm-translator
+  ghc-options: -Wall -Wcompat -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wmissing-export-lists -Wmissing-home-modules -Wpartial-fields -Wredundant-constraints -threaded -rtsopts -with-rtsopts=-N
+  build-depends:
+      HUnit
+    , base >=4.7 && <5
+    , compilers
+    , containers
+    , mtl
+    , optparse-applicative
+    , regex-tdfa
+  default-language: Haskell2010
+
+test-suite compilers-test
   type: exitcode-stdio-1.0
   main-is: Spec.hs
   other-modules:
-      Paths_assembler
+      Paths_compilers
   autogen-modules:
-      Paths_assembler
+      Paths_compilers
   hs-source-dirs:
       test
   ghc-options: -Wall -Wcompat -Widentities -Wincomplete-record-updates -Wincomplete-uni-patterns -Wmissing-export-lists -Wmissing-home-modules -Wpartial-fields -Wredundant-constraints -threaded -rtsopts -with-rtsopts=-N
   build-depends:
       HUnit
-    , assembler
     , base >=4.7 && <5
+    , compilers
     , containers
     , mtl
     , optparse-applicative

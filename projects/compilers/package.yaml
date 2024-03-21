@@ -1,4 +1,4 @@
-name:                assembler
+name:                compilers
 version:             0.1.0.0
 github:              "githubuser/assembler"
 license:             BSD-3-Clause
@@ -42,18 +42,28 @@ library:
   source-dirs: src
 
 executables:
-  assembler-exe:
+  assembler:
     main:                Main.hs
-    source-dirs:         app
+    source-dirs:         assembler
     ghc-options:
     - -threaded
     - -rtsopts
     - -with-rtsopts=-N
     dependencies:
-    - assembler
+    - compilers
+  vm-translator:
+    main:                Main.hs
+    source-dirs:         vm-translator
+    ghc-options:
+    - -threaded
+    - -rtsopts
+    - -with-rtsopts=-N
+    dependencies:
+    - compilers
+
 
 tests:
-  assembler-test:
+  compilers-test:
     main:                Spec.hs
     source-dirs:         test
     ghc-options:
@@ -61,6 +71,6 @@ tests:
     - -rtsopts
     - -with-rtsopts=-N
     dependencies:
-    - assembler
+    - compilers
     - tasty-hunit
     - tasty
