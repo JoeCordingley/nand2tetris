@@ -1,6 +1,6 @@
 import Test.Tasty
 import Test.Tasty.HUnit
-import Lib
+import Assembler
 
 instructionsAndOutputs :: [(String, String)]
 instructionsAndOutputs = cinstructionsAndOutputs <> ainstructionsAndOutputs <> commentsAndBlankLines

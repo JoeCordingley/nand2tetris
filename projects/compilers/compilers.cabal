@@ -25,8 +25,10 @@ source-repository head
 
 library
   exposed-modules:
+      Assembler
       Lib
       Parser
+      VMTranslator
   other-modules:
       Paths_compilers
   autogen-modules:

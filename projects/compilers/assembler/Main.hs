@@ -2,12 +2,13 @@
 
 module Main (main) where
 
-import Lib
+import Assembler
 import Options.Applicative
 import Text.Regex.TDFA
+import Lib
 
 main :: IO ()
-main = (uncurry printFile) =<< execParser opts
+main = (uncurry assembleFile) =<< execParser opts
   where
     opts = info (fileParser <**> helper)
       ( fullDesc

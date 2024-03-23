@@ -8,15 +8,20 @@ module Parser
   , optional
   , ifChar
   , charIn
+  , runParser
   , Parser
+  , int
+  , token
   ) where
 
-import Control.Monad.State.Lazy (StateT(..))
+import Control.Monad.State.Lazy (StateT(..), evalStateT)
 import Data.List (uncons)
-import Control.Applicative (Alternative, (<|>), empty)
+import Control.Applicative (Alternative, (<|>), empty, many, some)
 import Data.Char (isDigit)
 import Data.Functor (void)
 import Data.Maybe (maybeToList)
+import Lib
+import Text.Read (readMaybe) 
 
 type Parser = StateT (Maybe String) []
 
@@ -59,3 +64,18 @@ digit = ifChar isDigit
 optional :: Alternative m => m a -> m (Maybe a)
 optional p = fmap Just p <|> pure Nothing
 
+runParser :: Parser a -> String -> Maybe a
+runParser p = headMay . evalStateT p . Just where
+  headMay (a:_) = Just a
+  headMay [] = Nothing
+
+int :: Parser Int 
+int = do 
+  digits <- many digit
+  liftMaybe $ readMaybe digits 
+
+token :: Parser a -> Parser a
+token p = p <* whitespace
+
+whitespace :: Parser ()
+whitespace = void $ some $ void (char ' ') <|> endOfLine
