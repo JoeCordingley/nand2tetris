@@ -26,7 +26,7 @@ import Text.Read (readMaybe)
 type Parser = StateT (Maybe String) []
 
 endOfLine :: Parser ()
-endOfLine = void (char '\n') <|> eof
+endOfLine = void (string "\r\n") <|> void (char '\n' ) <|> eof
 
 eof :: Parser ()
 eof = StateT $ maybeToList . f where
@@ -78,4 +78,5 @@ token :: Parser a -> Parser a
 token p = p <* whitespace
 
 whitespace :: Parser ()
-whitespace = void $ some $ void (char ' ') <|> endOfLine
+whitespace = void $ some $ void (char ' ') 
+
