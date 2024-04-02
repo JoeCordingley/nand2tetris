@@ -1,3 +1,5 @@
+{-# LANGUAGE FlexibleContexts #-}
+
 module Parser (
     endOfLine,
     char,
@@ -15,52 +17,50 @@ module Parser (
 ) where
 
 import Control.Applicative (Alternative, empty, many, some, (<|>))
-import Control.Monad.State.Lazy (StateT (..), evalStateT)
+import Control.Monad.State.Lazy (MonadState (get, put), StateT (..), evalStateT)
 import Data.Char (isDigit)
 import Data.Functor (void)
 import Data.List (uncons)
-import Data.Maybe (maybeToList)
 import Lib
 import Text.Read (readMaybe)
 
 type Parser = StateT (Maybe String) []
 
-endOfLine :: Parser ()
+endOfLine :: (MonadState (Maybe String) m, Alternative m) => m ()
 endOfLine = void (string "\r\n") <|> void (char '\n') <|> eof
 
-eof :: Parser ()
-eof = StateT $ maybeToList . f
-  where
-    f m = do
-        s <- m
-        case s of
-            "" -> Just ((), Nothing)
-            _ -> Nothing
+unfinishedSource :: (MonadState (Maybe String) m, Alternative m) => m String
+unfinishedSource = get >>= liftMaybe
 
-string :: String -> Parser String
+eof :: (MonadState (Maybe String) m, Alternative m) => m ()
+eof = do
+    s <- unfinishedSource
+    case s of
+        "" -> put Nothing
+        _ -> empty
+
+string :: (MonadState (Maybe String) m, Alternative m) => String -> m String
 string = traverse char
 
-char :: Char -> Parser Char
+char :: (MonadState (Maybe String) m, Alternative m) => Char -> m Char
 char = ifChar . (==)
 
-ifChar :: (Char -> Bool) -> Parser Char
+ifChar :: (MonadState (Maybe String) m, Alternative m) => (Char -> Bool) -> m Char
 ifChar p = anyChar >>= guarded p
 
-charIn :: [Char] -> Parser Char
+charIn :: (MonadState (Maybe String) m, Alternative m) => [Char] -> m Char
 charIn chars = ifChar $ flip elem chars
 
 guarded :: (Alternative f) => (a -> Bool) -> a -> f a
 guarded p a = if p a then pure a else empty
 
-anyChar :: Parser Char
-anyChar = StateT $ maybeToList . f
-  where
-    f m = do
-        s <- m
-        (a, rest) <- uncons s
-        return (a, Just rest)
+anyChar :: (MonadState (Maybe String) m, Alternative m) => m Char
+anyChar = do
+    s <- unfinishedSource
+    (a, rest) <- liftMaybe $ uncons s
+    a <$ put (Just rest)
 
-digit :: Parser Char
+digit :: (MonadState (Maybe String) m, Alternative m) => m Char
 digit = ifChar isDigit
 
 optional :: (Alternative m) => m a -> m (Maybe a)
@@ -68,17 +68,14 @@ optional p = fmap Just p <|> pure Nothing
 
 runParser :: Parser a -> String -> Maybe a
 runParser p = headMay . evalStateT p . Just
-  where
-    headMay (a : _) = Just a
-    headMay [] = Nothing
 
-int :: Parser Int
+int :: (MonadState (Maybe String) m, Alternative m) => m Int
 int = do
     digits <- many digit
     liftMaybe $ readMaybe digits
 
-token :: Parser a -> Parser a
+token :: (MonadState (Maybe String) m, Alternative m) => m a -> m a
 token p = p <* whitespace
 
-whitespace :: Parser ()
+whitespace :: (MonadState (Maybe String) m, Alternative m) => m ()
 whitespace = void $ some $ void (char ' ')

@@ -1,4 +1,4 @@
-module Lib (InputFile (..), OutputFile (..), compileFile, liftMaybe) where
+module Lib (InputFile (..), OutputFile (..), compileFile, liftMaybe, headMay) where
 
 import Control.Applicative (Alternative, empty)
 import System.IO (IOMode (ReadMode, WriteMode), hGetContents, hPutStrLn, withFile)
@@ -18,3 +18,7 @@ compileFile compile (InputFile input) (OutputFile output) =
 liftMaybe :: (Alternative f) => Maybe a -> f a
 liftMaybe (Just a) = pure a
 liftMaybe Nothing = empty
+
+headMay :: [a] -> Maybe a
+headMay (a : _) = Just a
+headMay [] = Nothing

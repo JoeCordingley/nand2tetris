@@ -1,10 +1,19 @@
+{-# LANGUAGE FlexibleContexts #-}
+
 module VMTranslator (translateFile, translate) where
 
 import Control.Applicative (many, (<|>))
+import Control.Monad.State (StateT, get, lift, put)
+import Control.Monad.State.Lazy (evalStateT)
 import Data.Functor (void)
 import Data.List (intercalate)
 import Lib
-import Parser
+import Parser hiding (Parser, runParser)
+
+runParser :: Parser a -> String -> Maybe a
+runParser p = headMay . flip evalStateT 0 . evalStateT p . Just
+
+type Parser = StateT (Maybe String) (StateT Int [])
 
 translateFile :: InputFile -> OutputFile -> IO ()
 translateFile = compileFile translate
@@ -28,18 +37,25 @@ vminstruction = push <|> command
     command = add <|> eq <|> lt <|> gt <|> sub <|> neg <|> and' <|> or' <|> not'
       where
         binaryOperator f name = popd <> popm <> f <> pushd <$ string name
-        relationalOperator f =
-            binaryOperator
-                [ "D=D-M"
-                , "@EQ"
-                , "D;J" <> f
-                , "D=0"
-                , "@END"
-                , "0;JMP"
-                , "(EQ)"
-                , "D=-1"
-                , "(END)"
-                ]
+        relationalOperator :: String -> String -> Parser [String]
+        relationalOperator f name =
+            incrementing $ flip binaryOperator name . relationalCommands f
+        relationalCommands :: String -> Int -> [String]
+        relationalCommands f i =
+            [ "D=D-M"
+            , "@" <> eqi
+            , "D;J" <> f
+            , "D=0"
+            , "@" <> endi
+            , "0;JMP"
+            , "(" <> eqi <> ")"
+            , "D=-1"
+            , "(" <> endi <> ")"
+            ]
+          where
+            eqi = "EQ" <> show i
+            endi = "END" <> show i
+
         add = binaryOperator ["D=D+M"] "add"
         sub = binaryOperator ["D=D-M"] "sub"
         eq = relationalOperator "EQ" "eq"
@@ -59,3 +75,8 @@ vminstruction = push <|> command
         neg = popm <> ["D=-M"] <> pushd <$ string "neg"
         not' = popm <> ["D=!M"] <> pushd <$ string "not"
     pushd = ["@SP", "A=M", "M=D", "@SP", "M=M+1"]
+
+incrementing :: (Int -> Parser a) -> Parser a
+incrementing f = do
+    i <- lift get
+    f i <* lift (put i)

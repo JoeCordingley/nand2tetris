@@ -55,10 +55,6 @@ assemble = fmap (intercalate "\n" . runSecondPass . runFirstPass) . parse . filt
     runFirstPass = flip runState initialFirstPassState . getCompose
     runSecondPass = uncurry evalState . fmap (initialSecondPassState . firstPassSymbolTable)
 
-headMay :: [a] -> Maybe a
-headMay (a : _) = Just a
-headMay [] = Nothing
-
 type FirstPass = State FirstPassState
 type SecondPass = State SecondPassState
 type Assembler = Compose Parser (Compose FirstPass SecondPass)
