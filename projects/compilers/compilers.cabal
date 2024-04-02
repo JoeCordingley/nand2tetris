@@ -87,6 +87,8 @@ test-suite compilers-test
   type: exitcode-stdio-1.0
   main-is: Spec.hs
   other-modules:
+      AssemblerSpec
+      VMTranslatorSpec
       Paths_compilers
   autogen-modules:
       Paths_compilers

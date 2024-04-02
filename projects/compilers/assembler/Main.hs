@@ -3,17 +3,20 @@
 module Main (main) where
 
 import Assembler
+import Lib
 import Options.Applicative
 import Text.Regex.TDFA
-import Lib
 
 main :: IO ()
-main = (uncurry assembleFile) =<< execParser opts
+main = uncurry assembleFile =<< execParser opts
   where
-    opts = info (fileParser <**> helper)
-      ( fullDesc
-     <> progDesc "Assemble a hack asm"
-     <> header "haskell nand2Tetris hack assembler" )
+    opts =
+        info
+            (fileParser <**> helper)
+            ( fullDesc
+                <> progDesc "Assemble a hack asm"
+                <> header "haskell nand2Tetris hack assembler"
+            )
 
 fileParser :: Parser (InputFile, OutputFile)
 fileParser = argument (eitherReader parseFileName) (metavar "FILE.asm")
@@ -21,7 +24,7 @@ fileParser = argument (eitherReader parseFileName) (metavar "FILE.asm")
 asmRegex :: String
 asmRegex = "^(.*)\\.asm$"
 
-parseFileName :: String -> Either String (InputFile, OutputFile) 
-parseFileName s = case s =~ asmRegex of 
-  ((_, "", _, _) :: (String, String, String, [String])) -> Left "invalid filename"
-  ((_, m, _, matches) :: (String, String, String, [String])) -> Right $ (InputFile m, OutputFile (head matches <> ".hack"))
+parseFileName :: String -> Either String (InputFile, OutputFile)
+parseFileName s = case s =~ asmRegex of
+    ((_, "", _, _) :: (String, String, String, [String])) -> Left "invalid filename"
+    ((_, m, _, matches) :: (String, String, String, [String])) -> Right (InputFile m, OutputFile (head matches <> ".hack"))

@@ -13,12 +13,13 @@ M=D
 @SP
 M=M+1
 @SP
-M=M-1
-A=M
+AM=M-1
 D=M
 @SP
-M=M-1
+AM=M-1
+D=D+M
+@SP
 A=M
-M=D+M
+M=D
 @SP
 M=M+1
