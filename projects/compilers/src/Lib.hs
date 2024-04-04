@@ -22,3 +22,6 @@ liftMaybe Nothing = empty
 headMay :: [a] -> Maybe a
 headMay (a : _) = Just a
 headMay [] = Nothing
+
+-- passState :: (s -> a) -> State s a
+-- passState = gets

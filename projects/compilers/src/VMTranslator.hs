@@ -42,7 +42,7 @@ vminstruction = push <|> command
             incrementing $ flip binaryOperator name . relationalCommands f
         relationalCommands :: String -> Int -> [String]
         relationalCommands f i =
-            [ "D=D-M"
+            [ "D=M-D"
             , "@" <> eqi
             , "D;J" <> f
             , "D=0"
@@ -57,7 +57,7 @@ vminstruction = push <|> command
             endi = "END" <> show i
 
         add = binaryOperator ["D=D+M"] "add"
-        sub = binaryOperator ["D=D-M"] "sub"
+        sub = binaryOperator ["D=M-D"] "sub"
         eq = relationalOperator "EQ" "eq"
         lt = relationalOperator "LT" "lt"
         gt = relationalOperator "GT" "gt"
@@ -79,4 +79,4 @@ vminstruction = push <|> command
 incrementing :: (Int -> Parser a) -> Parser a
 incrementing f = do
     i <- lift get
-    f i <* lift (put i)
+    f i <* (lift . put $ i + 1)

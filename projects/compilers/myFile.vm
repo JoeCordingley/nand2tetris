@@ -1,3 +1,45 @@
-push constant 7
-push constant 8
-add
+// This file is part of www.nand2tetris.org
+// and the book "The Elements of Computing Systems"
+// by Nisan and Schocken, MIT Press.
+// File name: projects/07/StackArithmetic/StackTest/StackTest.vm
+
+// Executes a sequence of arithmetic and logical operations
+// on the stack. 
+push constant 17     //17
+push constant 17     //17,17
+eq                   //true
+push constant 17     //true, 17
+push constant 16     //true, 17, 16
+eq                   //true, false
+push constant 16     //true, false, 16
+push constant 17     //true, false, 16, 17
+eq                   //true, false, false
+push constant 892    //true, false, false, 892
+push constant 891    //true, false, false, 892, 891
+lt                   //true, false, false, false
+push constant 891    //true, false, false, false, 891
+push constant 892    //true, false, false, false, 891, 892
+lt                   //true, false, false, false, true
+push constant 891    //true, false, false, false, true, 891
+push constant 891    //true, false, false, false, true, 891, 891
+lt                   //true, false, false, false, true, false
+push constant 32767  //true, false, false, false, true, false, 32767
+push constant 32766  //true, false, false, false, true, false, 32767, 32766
+gt                   //true, false, false, false, true, false, true
+push constant 32766  //true, false, false, false, true, false, true, 32766
+push constant 32767  //true, false, false, false, true, false, true, 32766, 32767,
+gt                   //true, false, false, false, true, false, true, false
+push constant 32766  //true, false, false, false, true, false, true, false, 32766
+push constant 32766  //true, false, false, false, true, false, true, false, 32766, 32766
+gt                   //true, false, false, false, true, false, true, false, false
+push constant 57     //true, false, false, false, true, false, true, false, false, 57 
+push constant 31     //true, false, false, false, true, false, true, false, false, 57, 31  
+push constant 53     //true, false, false, false, true, false, true, false, false, 57, 31, 53  
+add                  //true, false, false, false, true, false, true, false, false, 57, 84  
+push constant 112    //true, false, false, false, true, false, true, false, false, 57, 84, 112  
+sub                  //true, false, false, false, true, false, true, false, false, 57, -28
+neg                  //true, false, false, false, true, false, true, false, false, 57, 28
+and                  //true, false, false, false, true, false, true, false, false, 24
+push constant 82     //true, false, false, false, true, false, true, false, false, 24, 82
+or                   //true, false, false, false, true, false, true, false, false, 90
+not                  //true, false, false, false, true, false, true, false, false, -91
