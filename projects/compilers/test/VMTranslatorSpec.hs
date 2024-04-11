@@ -20,9 +20,10 @@ simpleAdd = testCase "SimpleAdd.vm" $ translate input @?= Just output
             , "// File name: projects/07/StackArithmetic/SimpleAdd/SimpleAdd.vm"
             , ""
             , "// Pushes and adds two constants."
-            , "push constant 7"
-            , "push constant 8"
-            , "add"
+            , "push constant 7      //comment"
+            , "push constant 8//comment"
+            , "add //comment"
+            , "//comment"
             ]
     output =
         intercalate
@@ -42,13 +43,14 @@ simpleAdd = testCase "SimpleAdd.vm" $ translate input @?= Just output
             , "@SP"
             , "M=M+1"
             , "@SP"
-            , "M=M-1"
-            , "A=M"
+            , "AM=M-1"
             , "D=M"
             , "@SP"
-            , "M=M-1"
+            , "AM=M-1"
+            , "D=D+M"
+            , "@SP"
             , "A=M"
-            , "M=D+M"
+            , "M=D"
             , "@SP"
             , "M=M+1"
             ]

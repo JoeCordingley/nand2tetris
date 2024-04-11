@@ -13,7 +13,7 @@ module Parser (
     runParser,
     Parser,
     int,
-    token,
+    lexeme,
 ) where
 
 import Control.Applicative (Alternative, empty, many, (<|>))
@@ -74,30 +74,8 @@ int = do
     digits <- many digit
     liftMaybe $ readMaybe digits
 
-token :: (MonadState (Maybe String) m, Alternative m) => m a -> m a
-token p = p <* whitespace
+lexeme :: (MonadState (Maybe String) m, Alternative m) => m a -> m a
+lexeme p = p <* whitespace
 
 whitespace :: (MonadState (Maybe String) m, Alternative m) => m ()
 whitespace = void $ many $ char ' '
-
-newtype Cont r a = Cont {runCont :: (a -> r) -> r}
-
-instance Functor (Cont r) where
-    fmap f (Cont ff) = Cont ff'
-      where
-        ff' g = ff $ g . f
-
-instance Applicative (Cont r) where
-    Cont ff <*> Cont fa = Cont b
-      where
-        b g = ff h
-          where
-            h i = fa (g . i)
-    pure a = Cont ($ a)
-
-instance Monad (Cont r) where
-    Cont fa >>= f = Cont g
-      where
-        g h = fa i
-          where
-            i a = (runCont . f) a h

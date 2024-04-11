@@ -22,19 +22,38 @@ translate :: String -> Maybe String
 translate = fmap (intercalate "\n") . runParser (concat <$> many line)
 
 line :: Parser [String]
-line = fmap concat (optional vminstruction) <* optional comment <* endOfLine
+line = fmap concat (optional . lexeme $ vminstruction) <* optional comment <* endOfLine
 
 comment :: Parser ()
 comment = void $ string "//" *> many (ifChar (/= '\n'))
 
+data Direction = Push | Pop
+
 vminstruction :: Parser [String]
-vminstruction = push <|> command
+vminstruction = memoryCommand <|> logicalCommand
   where
-    push = token (string "push") *> token (constant <$ string "constant") <*> index
+    memoryCommand = lexeme op <*> lexeme segment <*> index
       where
+        op = push <|> pop
+          where
+            push = f <$ string "push"
+              where
+                f s i = s Push i <> pushd
+            pop = f <$ string "pop"
+              where
+                f s i = popd <> s Pop i
+        segment = constant
+          where
+            constant = f <$ string "constant"
+              where
+                f Push i = ["@" <> show i, "D=A"]
+                f Pop _ = []
         index = int
-        constant i = ["@" <> show i, "D=A"] <> pushd
-    command = add <|> eq <|> lt <|> gt <|> sub <|> neg <|> and' <|> or' <|> not'
+    --    push = lexeme (string "push") *> lexeme (constant <$ string "constant") <*> index
+    --      where
+    --        index = int
+    --        constant i = ["@" <> show i, "D=A"] <> pushd
+    logicalCommand = add <|> eq <|> lt <|> gt <|> sub <|> neg <|> and' <|> or' <|> not'
       where
         binaryOperator f name = popd <> popm <> f <> pushd <$ string name
         relationalOperator :: String -> String -> Parser [String]
@@ -63,11 +82,6 @@ vminstruction = push <|> command
         gt = relationalOperator "GT" "gt"
         and' = binaryOperator ["D=D&M"] "and"
         or' = binaryOperator ["D=D|M"] "or"
-        popd =
-            [ "@SP"
-            , "AM=M-1"
-            , "D=M"
-            ]
         popm =
             [ "@SP"
             , "AM=M-1"
@@ -75,6 +89,11 @@ vminstruction = push <|> command
         neg = popm <> ["D=-M"] <> pushd <$ string "neg"
         not' = popm <> ["D=!M"] <> pushd <$ string "not"
     pushd = ["@SP", "A=M", "M=D", "@SP", "M=M+1"]
+    popd =
+        [ "@SP"
+        , "AM=M-1"
+        , "D=M"
+        ]
 
 incrementing :: (Int -> Parser a) -> Parser a
 incrementing f = do
