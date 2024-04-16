@@ -9,7 +9,7 @@ import Data.Void
 import Lib (InputFile (..), OutputFile (..), liftMaybe, mapLeft)
 import System.IO (IOMode (ReadMode, WriteMode), hGetContents, hPutStrLn, withFile)
 import Text.Megaparsec hiding (State)
-import Text.Megaparsec.Char (digitChar, space1, string)
+import Text.Megaparsec.Char (digitChar, newline, space1, string)
 import Text.Megaparsec.Char.Lexer
 import Text.Read (readMaybe)
 
@@ -29,7 +29,7 @@ translate :: String -> Either String String
 translate = mapLeft errorBundlePretty . fmap (intercalate "\n") . flip evalState 0 . runParserT (concat <$> many line) "sourceName" where
 
 line :: Parser [String]
-line = fmap concat (optional . word $ vminstruction)
+line = fmap concat (optional . word $ vminstruction) <* newline
 
 word :: Parser a -> Parser a
 word = lexeme (space space1 comment empty)

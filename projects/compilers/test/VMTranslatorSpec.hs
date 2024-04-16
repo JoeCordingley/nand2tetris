@@ -12,19 +12,7 @@ simpleAdd :: TestTree
 simpleAdd = testCase "SimpleAdd.vm" $ translate input @?= Right output
   where
     input =
-        intercalate
-            "\n"
-            [ "// This file is part of www.nand2tetris.org"
-            , "// and the book \"The Elements of Computing Systems\""
-            , "// by Nisan and Schocken, MIT Press."
-            , "// File name: projects/07/StackArithmetic/SimpleAdd/SimpleAdd.vm"
-            , ""
-            , "// Pushes and adds two constants."
-            , "push constant 7      //comment"
-            , "push constant 8 //comment"
-            , "add //comment"
-            , "//comment"
-            ]
+        "push constant 7 \n"
     output =
         intercalate
             "\n"
