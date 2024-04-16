@@ -9,7 +9,7 @@ testVMTranslator :: TestTree
 testVMTranslator = testGroup "VMTranslator tests" [simpleAdd]
 
 simpleAdd :: TestTree
-simpleAdd = testCase "SimpleAdd.vm" $ translate input @?= Just output
+simpleAdd = testCase "SimpleAdd.vm" $ translate input @?= Right output
   where
     input =
         intercalate
@@ -21,7 +21,7 @@ simpleAdd = testCase "SimpleAdd.vm" $ translate input @?= Just output
             , ""
             , "// Pushes and adds two constants."
             , "push constant 7      //comment"
-            , "push constant 8//comment"
+            , "push constant 8 //comment"
             , "add //comment"
             , "//comment"
             ]

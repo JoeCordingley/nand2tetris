@@ -26,6 +26,7 @@ dependencies:
 - regex-tdfa
 - HUnit
 - optparse-applicative
+- megaparsec
 
 ghc-options:
 - -Wall

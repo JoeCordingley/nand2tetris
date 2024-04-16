@@ -1,38 +1,62 @@
 {-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE OverloadedStrings #-}
 
 module VMTranslator (translateFile, translate) where
 
-import Control.Applicative (many, (<|>))
-import Control.Monad.State (StateT, get, lift, put)
-import Control.Monad.State.Lazy (evalStateT)
-import Data.Functor (void)
+import Control.Monad.State.Lazy (State, evalState, get, lift, put)
 import Data.List (intercalate)
-import Lib
-import Parser hiding (Parser, runParser)
+import Data.Void
+import Lib (InputFile (..), OutputFile (..), liftMaybe, mapLeft)
+import System.IO (IOMode (ReadMode, WriteMode), hGetContents, hPutStrLn, withFile)
+import Text.Megaparsec hiding (State)
+import Text.Megaparsec.Char (digitChar, space1, string)
+import Text.Megaparsec.Char.Lexer
+import Text.Read (readMaybe)
 
-runParser :: Parser a -> String -> Maybe a
-runParser p = headMay . flip evalStateT 0 . evalStateT p . Just
+-- import Parser hiding (Parser, runParser)
 
-type Parser = StateT (Maybe String) (StateT Int [])
+-- runParser :: Parser a -> String -> Maybe a
+-- runParser p = headMay . flip evalStateT 0 . evalStateT p . Just
+
+-- type Parser = StateT (Maybe String) (StateT Int [])
+
+type Parser = ParsecT Void String (State Int)
 
 translateFile :: InputFile -> OutputFile -> IO ()
 translateFile = compileFile translate
 
-translate :: String -> Maybe String
-translate = fmap (intercalate "\n") . runParser (concat <$> many line)
+translate :: String -> Either String String
+translate = mapLeft errorBundlePretty . fmap (intercalate "\n") . flip evalState 0 . runParserT (concat <$> many line) "sourceName" where
 
 line :: Parser [String]
-line = fmap concat (optional . lexeme $ vminstruction) <* optional comment <* endOfLine
+line = fmap concat (optional . word $ vminstruction)
+
+word :: Parser a -> Parser a
+word = lexeme (space space1 comment empty)
+
+compileFile :: (String -> Either String String) -> InputFile -> OutputFile -> IO ()
+compileFile compile (InputFile input) (OutputFile output) =
+    withFile input ReadMode $ \i ->
+        withFile output WriteMode $ \o -> do
+            contents <- hGetContents i
+            case compile contents of
+                Right compiled -> hPutStrLn o compiled *> putStrLn "success"
+                Left errorBundle -> putStrLn $ show errorBundle
 
 comment :: Parser ()
-comment = void $ string "//" *> many (ifChar (/= '\n'))
+comment = skipLineComment "//"
 
 data Direction = Push | Pop
+
+int :: Parser Int
+int = do
+    digits <- many digitChar
+    liftMaybe $ readMaybe digits
 
 vminstruction :: Parser [String]
 vminstruction = memoryCommand <|> logicalCommand
   where
-    memoryCommand = lexeme op <*> lexeme segment <*> index
+    memoryCommand = word op <*> word segment <*> index
       where
         op = push <|> pop
           where

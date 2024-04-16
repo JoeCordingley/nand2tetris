@@ -1,4 +1,4 @@
-module Lib (InputFile (..), OutputFile (..), compileFile, liftMaybe, headMay) where
+module Lib (InputFile (..), OutputFile (..), compileFile, liftMaybe, headMay, mapLeft) where
 
 import Control.Applicative (Alternative, empty)
 import System.IO (IOMode (ReadMode, WriteMode), hGetContents, hPutStrLn, withFile)
@@ -22,6 +22,10 @@ liftMaybe Nothing = empty
 headMay :: [a] -> Maybe a
 headMay (a : _) = Just a
 headMay [] = Nothing
+
+mapLeft :: (a -> c) -> Either a b -> Either c b
+mapLeft f (Left a) = Left $ f a
+mapLeft _ (Right b) = Right b
 
 -- passState :: (s -> a) -> State s a
 -- passState = gets

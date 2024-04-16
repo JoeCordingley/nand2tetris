@@ -40,6 +40,7 @@ library
       HUnit
     , base >=4.7 && <5
     , containers
+    , megaparsec
     , mtl
     , optparse-applicative
     , regex-tdfa
@@ -59,6 +60,7 @@ executable assembler
     , base >=4.7 && <5
     , compilers
     , containers
+    , megaparsec
     , mtl
     , optparse-applicative
     , regex-tdfa
@@ -78,6 +80,7 @@ executable vm-translator
     , base >=4.7 && <5
     , compilers
     , containers
+    , megaparsec
     , mtl
     , optparse-applicative
     , regex-tdfa
@@ -100,6 +103,7 @@ test-suite compilers-test
     , base >=4.7 && <5
     , compilers
     , containers
+    , megaparsec
     , mtl
     , optparse-applicative
     , regex-tdfa
