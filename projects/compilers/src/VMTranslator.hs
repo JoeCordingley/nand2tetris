@@ -9,16 +9,9 @@ import Data.Void
 import Lib (InputFile (..), OutputFile (..), liftMaybe, mapLeft)
 import System.IO (IOMode (ReadMode, WriteMode), hGetContents, hPutStrLn, withFile)
 import Text.Megaparsec hiding (State)
-import Text.Megaparsec.Char (digitChar, newline, space1, string)
+import Text.Megaparsec.Char (digitChar, eol, hspace1, string)
 import Text.Megaparsec.Char.Lexer
 import Text.Read (readMaybe)
-
--- import Parser hiding (Parser, runParser)
-
--- runParser :: Parser a -> String -> Maybe a
--- runParser p = headMay . flip evalStateT 0 . evalStateT p . Just
-
--- type Parser = StateT (Maybe String) (StateT Int [])
 
 type Parser = ParsecT Void String (State Int)
 
@@ -26,13 +19,24 @@ translateFile :: InputFile -> OutputFile -> IO ()
 translateFile = compileFile translate
 
 translate :: String -> Either String String
-translate = mapLeft errorBundlePretty . fmap (intercalate "\n") . flip evalState 0 . runParserT (concat <$> many line) "sourceName" where
+translate = fmap (intercalate "\n") . runTrans instructions
+
+runTrans :: Parser a -> String -> Either String a
+runTrans p = mapLeft errorBundlePretty . flip evalState 0 . runParserT p "sourceName" where
 
 line :: Parser [String]
-line = fmap concat (optional . word $ vminstruction) <* newline
+line = fmap concat . word . optional $ vminstruction
+
+lines' :: (MonadParsec e String f) => f [a] -> f [a]
+lines' l = (<>) <$> l <*> rest
+  where
+    rest = [] <$ eof <|> eol *> lines' l
+
+instructions :: Parser [String]
+instructions = lines' line
 
 word :: Parser a -> Parser a
-word = lexeme (space space1 comment empty)
+word = lexeme (space hspace1 comment empty)
 
 compileFile :: (String -> Either String String) -> InputFile -> OutputFile -> IO ()
 compileFile compile (InputFile input) (OutputFile output) =
@@ -56,7 +60,7 @@ int = do
 vminstruction :: Parser [String]
 vminstruction = memoryCommand <|> logicalCommand
   where
-    memoryCommand = word op <*> word segment <*> index
+    memoryCommand = word op <*> word segment <*> word index
       where
         op = push <|> pop
           where
@@ -83,7 +87,7 @@ vminstruction = memoryCommand <|> logicalCommand
             segmentCommand seg Push i = ["@" <> seg, "D=M", "@" <> show i, "A=D+A", "D=M"] <> pushd
             segmentCommand seg Pop i = ["@" <> seg, "D=M", "@" <> show i, "D=D+A", "@R13", "M=D"] <> popd <> ["@R13", "A=M", "M=D"]
         index = int
-    logicalCommand = add <|> eq <|> lt <|> gt <|> sub <|> neg <|> and' <|> or' <|> not'
+    logicalCommand = word $ add <|> eq <|> lt <|> gt <|> sub <|> neg <|> and' <|> or' <|> not'
       where
         add = simpleBinaryOperator "D=D+M" "add"
         sub = simpleBinaryOperator "D=M-D" "sub"

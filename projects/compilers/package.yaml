@@ -27,6 +27,7 @@ dependencies:
 - HUnit
 - optparse-applicative
 - megaparsec
+- text
 
 ghc-options:
 - -Wall
