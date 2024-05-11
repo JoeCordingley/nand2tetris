@@ -15,25 +15,25 @@ import Text.Read (readMaybe)
 
 type Parser = ParsecT Void String (State Int)
 
-translateFile :: InputFile -> OutputFile -> IO ()
-translateFile = compileFile translate
+translateFile :: String -> InputFile -> OutputFile -> IO ()
+translateFile filePrefix = compileFile $ translate filePrefix
 
-translate :: String -> Either String String
-translate = fmap (intercalate "\n") . runTrans instructions
+translate :: String -> String -> Either String String
+translate filePrefix = fmap (intercalate "\n") . runTrans (instructions filePrefix)
 
 runTrans :: Parser a -> String -> Either String a
-runTrans p = mapLeft errorBundlePretty . flip evalState 0 . runParserT p "sourceName" where
+runTrans p = mapLeft errorBundlePretty . flip evalState 0 . runParserT p "sourceName"
 
-line :: Parser [String]
-line = fmap concat . word . optional $ vminstruction
+line :: String -> Parser [String]
+line filePrefix = fmap concat . word . optional $ vminstruction filePrefix
 
 lines' :: (MonadParsec e String f) => f [a] -> f [a]
 lines' l = (<>) <$> l <*> rest
   where
     rest = [] <$ eof <|> eol *> lines' l
 
-instructions :: Parser [String]
-instructions = lines' line
+instructions :: String -> Parser [String]
+instructions filePrefix = lines' $ line filePrefix
 
 word :: Parser a -> Parser a
 word = lexeme (space hspace1 comment empty)
@@ -45,7 +45,7 @@ compileFile compile (InputFile input) (OutputFile output) =
             contents <- hGetContents i
             case compile contents of
                 Right compiled -> hPutStrLn o compiled *> putStrLn "success"
-                Left errorBundle -> putStrLn $ show errorBundle
+                Left errorBundle -> print $ show errorBundle
 
 comment :: Parser ()
 comment = skipLineComment "//"
@@ -57,8 +57,8 @@ int = do
     digits <- many digitChar
     liftMaybe $ readMaybe digits
 
-vminstruction :: Parser [String]
-vminstruction = memoryCommand <|> logicalCommand
+vminstruction :: String -> Parser [String]
+vminstruction filePrefix = memoryCommand <|> logicalCommand
   where
     memoryCommand = word op <*> word segment <*> word index
       where
@@ -76,8 +76,8 @@ vminstruction = memoryCommand <|> logicalCommand
             pointer = rSegment 3 <$ string "pointer"
             static = f <$ string "static"
               where
-                f Push i = ["@Xxx." <> show i, "D=M"] <> pushd
-                f Pop i = popd <> ["@Xxx." <> show i, "M=D"]
+                f Push i = ["@" <> filePrefix <> "." <> show i, "D=M"] <> pushd
+                f Pop i = popd <> ["@" <> filePrefix <> "." <> show i, "M=D"]
             local = segmentCommand "LCL" <$ string "local"
             argument = segmentCommand "ARG" <$ string "argument"
             this = segmentCommand "THIS" <$ string "this"

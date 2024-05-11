@@ -9,7 +9,7 @@ testVMTranslator :: TestTree
 testVMTranslator = testGroup "VMTranslator tests" [simpleAdd]
 
 simpleAdd :: TestTree
-simpleAdd = testCase "SimpleAdd.vm" $ translate input @?= Right output
+simpleAdd = testCase "SimpleAdd.vm" $ translate "file" input @?= Right output
   where
     input =
         intercalate

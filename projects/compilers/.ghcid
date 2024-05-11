@@ -1,1 +1,0 @@
---command="stack ghci -fno-code src/* test/*" --test=main
