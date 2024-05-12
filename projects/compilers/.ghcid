@@ -1,0 +1,1 @@
+--command="stack ghci --ghc-options Wno-warn src/* test/* vm-translator/* assembler/*" --test=main

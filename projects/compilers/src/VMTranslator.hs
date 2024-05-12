@@ -1,42 +1,48 @@
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE OverloadedStrings #-}
 
-module VMTranslator (translateFile, translate) where
+module VMTranslator (translateFile, translate, incrementing) where
 
+import Control.Monad.Reader (ReaderT (..), ask)
 import Control.Monad.State.Lazy (State, evalState, get, lift, put)
 import Data.List (intercalate)
 import Data.Void
-import Lib (InputFile (..), OutputFile (..), liftMaybe, mapLeft)
+import Lib (FilePrefix (..), InputFile (..), OutputFile (..), liftMaybe, mapLeft)
 import System.IO (IOMode (ReadMode, WriteMode), hGetContents, hPutStrLn, withFile)
 import Text.Megaparsec hiding (State)
-import Text.Megaparsec.Char (digitChar, eol, hspace1, string)
+import Text.Megaparsec.Char (digitChar, eol, hspace1, letterChar, string)
 import Text.Megaparsec.Char.Lexer
 import Text.Read (readMaybe)
 
-type Parser = ParsecT Void String (State Int)
+type Parser = ParsecT Void String (WithFilePrefix Incrementing)
+type Incrementing = State Int
+type WithFilePrefix m = ReaderT FilePrefix m
 
-translateFile :: String -> InputFile -> OutputFile -> IO ()
+translateFile :: FilePrefix -> InputFile -> OutputFile -> IO ()
 translateFile filePrefix = compileFile $ translate filePrefix
 
-translate :: String -> String -> Either String String
-translate filePrefix = fmap (intercalate "\n") . runTrans (instructions filePrefix)
+translate :: FilePrefix -> String -> Either String String
+translate filePrefix = fmap (intercalate "\n") . runTrans instructions filePrefix
 
-runTrans :: Parser a -> String -> Either String a
-runTrans p = mapLeft errorBundlePretty . flip evalState 0 . runParserT p "sourceName"
+runTrans :: Parser a -> FilePrefix -> String -> Either String a
+runTrans p filePrefix = mapLeft errorBundlePretty . flip evalState 0 . flip runReaderT filePrefix . runParserT p "sourceName"
 
-line :: String -> Parser [String]
-line filePrefix = fmap concat . word . optional $ vminstruction filePrefix
+line :: Parser [String]
+line = fmap concat . lexeme' . optional $ vminstruction
 
 lines' :: (MonadParsec e String f) => f [a] -> f [a]
 lines' l = (<>) <$> l <*> rest
   where
     rest = [] <$ eof <|> eol *> lines' l
 
-instructions :: String -> Parser [String]
-instructions filePrefix = lines' $ line filePrefix
+instructions :: Parser [String]
+instructions = lines' $ whitespace *> line
 
-word :: Parser a -> Parser a
-word = lexeme (space hspace1 comment empty)
+whitespace :: Parser ()
+whitespace = space hspace1 comment empty
+
+lexeme' :: Parser a -> Parser a
+lexeme' = lexeme whitespace
 
 compileFile :: (String -> Either String String) -> InputFile -> OutputFile -> IO ()
 compileFile compile (InputFile input) (OutputFile output) =
@@ -45,7 +51,7 @@ compileFile compile (InputFile input) (OutputFile output) =
             contents <- hGetContents i
             case compile contents of
                 Right compiled -> hPutStrLn o compiled *> putStrLn "success"
-                Left errorBundle -> print $ show errorBundle
+                Left errorBundle -> putStr errorBundle
 
 comment :: Parser ()
 comment = skipLineComment "//"
@@ -57,10 +63,16 @@ int = do
     digits <- many digitChar
     liftMaybe $ readMaybe digits
 
-vminstruction :: String -> Parser [String]
-vminstruction filePrefix = memoryCommand <|> logicalCommand
+label' :: Parser String
+label' = (:) <$> nonDigitChar <*> many labelChar
   where
-    memoryCommand = word op <*> word segment <*> word index
+    nonDigitChar = letterChar <|> oneOf ['_', '.', ':']
+    labelChar = digitChar <|> nonDigitChar
+
+vminstruction :: Parser [String]
+vminstruction = memoryCommand <|> logicalCommand <|> programFlowCommand
+  where
+    memoryCommand = lexeme' op <*> lexeme' segment <*> lexeme' index
       where
         op = push <|> pop
           where
@@ -74,10 +86,12 @@ vminstruction filePrefix = memoryCommand <|> logicalCommand
                 f Pop _ = ["@SP", "M=M-1"]
             temp = rSegment 5 <$ string "temp"
             pointer = rSegment 3 <$ string "pointer"
-            static = f <$ string "static"
+            static = withFilePrefix g
               where
-                f Push i = ["@" <> filePrefix <> "." <> show i, "D=M"] <> pushd
-                f Pop i = popd <> ["@" <> filePrefix <> "." <> show i, "M=D"]
+                g (FilePrefix filePrefix) = f <$ string "static"
+                  where
+                    f Push i = ["@" <> filePrefix <> "." <> show i, "D=M"] <> pushd
+                    f Pop i = popd <> ["@" <> filePrefix <> "." <> show i, "M=D"]
             local = segmentCommand "LCL" <$ string "local"
             argument = segmentCommand "ARG" <$ string "argument"
             this = segmentCommand "THIS" <$ string "this"
@@ -87,7 +101,7 @@ vminstruction filePrefix = memoryCommand <|> logicalCommand
             segmentCommand seg Push i = ["@" <> seg, "D=M", "@" <> show i, "A=D+A", "D=M"] <> pushd
             segmentCommand seg Pop i = ["@" <> seg, "D=M", "@" <> show i, "D=D+A", "@R13", "M=D"] <> popd <> ["@R13", "A=M", "M=D"]
         index = int
-    logicalCommand = word $ add <|> eq <|> lt <|> gt <|> sub <|> neg <|> and' <|> or' <|> not'
+    logicalCommand = lexeme' $ add <|> eq <|> lt <|> gt <|> sub <|> neg <|> and' <|> or' <|> not'
       where
         add = simpleBinaryOperator "D=D+M" "add"
         sub = simpleBinaryOperator "D=M-D" "sub"
@@ -123,6 +137,14 @@ vminstruction filePrefix = memoryCommand <|> logicalCommand
             [ "@SP"
             , "AM=M-1"
             ]
+    programFlowCommand = labelCommand <|> ifgoto
+      where
+        labelCommand = fmap f $ lexeme' (string "label") *> lexeme' label'
+          where
+            f label'' = ["(" <> label'' <> ")"]
+        ifgoto = fmap f $ lexeme' (string "if-goto") *> lexeme' label'
+          where
+            f label'' = popd <> ["@" <> label'', "D;JNE"]
     pushd = ["@SP", "A=M", "M=D", "@SP", "M=M+1"]
     popd =
         [ "@SP"
@@ -134,3 +156,6 @@ incrementing :: (Int -> Parser a) -> Parser a
 incrementing f = do
     i <- lift get
     f i <* (lift . put $ i + 1)
+
+withFilePrefix :: (FilePrefix -> Parser a) -> Parser a
+withFilePrefix f = lift ask >>= f

@@ -1,6 +1,7 @@
 module VMTranslatorSpec (testVMTranslator) where
 
 import Data.List (intercalate)
+import Lib (FilePrefix (..))
 import Test.Tasty
 import Test.Tasty.HUnit
 import VMTranslator (translate)
@@ -9,7 +10,7 @@ testVMTranslator :: TestTree
 testVMTranslator = testGroup "VMTranslator tests" [simpleAdd]
 
 simpleAdd :: TestTree
-simpleAdd = testCase "SimpleAdd.vm" $ translate "file" input @?= Right output
+simpleAdd = testCase "SimpleAdd.vm" $ translate (FilePrefix "file") input @?= Right output
   where
     input =
         intercalate
