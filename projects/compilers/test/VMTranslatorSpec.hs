@@ -1,5 +1,6 @@
 module VMTranslatorSpec (testVMTranslator) where
 
+import Control.Monad.Reader (runReaderT)
 import Data.List (intercalate)
 import Lib (FilePrefix (..))
 import Test.Tasty
@@ -10,8 +11,9 @@ testVMTranslator :: TestTree
 testVMTranslator = testGroup "VMTranslator tests" [simpleAdd]
 
 simpleAdd :: TestTree
-simpleAdd = testCase "SimpleAdd.vm" $ translate (FilePrefix "file") input @?= Right output
+simpleAdd = testCase "SimpleAdd.vm" $ translate' (FilePrefix "file") input @?= Right output
   where
+    translate' prefix = flip runReaderT prefix . translate
     input =
         intercalate
             "\n"

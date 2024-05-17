@@ -3,8 +3,9 @@
 
 module VMTranslator (translateFile, translate, incrementing) where
 
-import Control.Monad.Reader (ReaderT (..), ask)
-import Control.Monad.State.Lazy (State, evalState, get, lift, put)
+import Control.Monad.Reader (ReaderT (..), ask, mapReaderT)
+import Control.Monad.State.Lazy (StateT, evalStateT, get, lift, put)
+import Data.Functor.Identity
 import Data.List (intercalate)
 import Data.Void
 import Lib (FilePrefix (..), InputFile (..), OutputFile (..), liftMaybe, mapLeft)
@@ -14,18 +15,19 @@ import Text.Megaparsec.Char (digitChar, eol, hspace1, letterChar, string)
 import Text.Megaparsec.Char.Lexer
 import Text.Read (readMaybe)
 
-type Parser = ParsecT Void String (WithFilePrefix Incrementing)
-type Incrementing = State Int
+type Parser = ParsecT Void String (Incrementing (WithFilePrefix Identity))
+
+type Incrementing m = StateT Int m
 type WithFilePrefix m = ReaderT FilePrefix m
 
 translateFile :: FilePrefix -> InputFile -> OutputFile -> IO ()
-translateFile filePrefix = compileFile $ translate filePrefix
+translateFile filePrefix = compileFile $ flip runReaderT filePrefix . translate
 
-translate :: FilePrefix -> String -> Either String String
-translate filePrefix = fmap (intercalate "\n") . runTrans instructions filePrefix
+translate :: String -> ReaderT FilePrefix (Either String) String
+translate = fmap (intercalate "\n") . runTrans instructions
 
-runTrans :: Parser a -> FilePrefix -> String -> Either String a
-runTrans p filePrefix = mapLeft errorBundlePretty . flip evalState 0 . flip runReaderT filePrefix . runParserT p "sourceName"
+runTrans :: Parser a -> String -> ReaderT FilePrefix (Either String) a
+runTrans p = mapReaderT runIdentity . fmap (mapLeft errorBundlePretty) . flip evalStateT 0 . runParserT p "sourceName"
 
 line :: Parser [String]
 line = fmap concat . lexeme' . optional $ vminstruction
