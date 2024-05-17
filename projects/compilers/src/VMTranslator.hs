@@ -137,7 +137,7 @@ vminstruction = memoryCommand <|> logicalCommand <|> programFlowCommand
             [ "@SP"
             , "AM=M-1"
             ]
-    programFlowCommand = labelCommand <|> ifgoto
+    programFlowCommand = labelCommand <|> ifgoto <|> goto
       where
         labelCommand = fmap f $ lexeme' (string "label") *> lexeme' label'
           where
@@ -145,6 +145,9 @@ vminstruction = memoryCommand <|> logicalCommand <|> programFlowCommand
         ifgoto = fmap f $ lexeme' (string "if-goto") *> lexeme' label'
           where
             f label'' = popd <> ["@" <> label'', "D;JNE"]
+        goto = fmap f $ lexeme' (string "goto") *> lexeme' label'
+          where
+            f label'' = ["@" <> label'', "0;JMP"]
     pushd = ["@SP", "A=M", "M=D", "@SP", "M=M+1"]
     popd =
         [ "@SP"
