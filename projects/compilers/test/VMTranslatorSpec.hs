@@ -2,10 +2,10 @@ module VMTranslatorSpec (testVMTranslator) where
 
 import Control.Monad.Reader (runReaderT)
 import Data.List (intercalate)
-import Lib (FilePrefix (..))
+import Lib (FilePrefix (..), Source (..))
 import Test.Tasty
 import Test.Tasty.HUnit
-import VMTranslator (translate)
+import VMTranslator (translateInnerFunction)
 
 testVMTranslator :: TestTree
 testVMTranslator = testGroup "VMTranslator tests" [simpleAdd]
@@ -13,21 +13,22 @@ testVMTranslator = testGroup "VMTranslator tests" [simpleAdd]
 simpleAdd :: TestTree
 simpleAdd = testCase "SimpleAdd.vm" $ translate' (FilePrefix "file") input @?= Right output
   where
-    translate' prefix = flip runReaderT prefix . translate
+    translate' prefix = flip runReaderT prefix . translateInnerFunction
     input =
-        intercalate
-            "\n"
-            [ "// This file is part of www.nand2tetris.org"
-            , "// and the book \"The Elements of Computing Systems\""
-            , "// by Nisan and Schocken, MIT Press."
-            , "// File name: projects/07/StackArithmetic/SimpleAdd/SimpleAdd.vm"
-            , ""
-            , "// Pushes and adds two constants."
-            , "push constant 7      //comment"
-            , "push constant 8 //comment"
-            , "add //comment"
-            , "//comment"
-            ]
+        Source $
+            intercalate
+                "\n"
+                [ "// This file is part of www.nand2tetris.org"
+                , "// and the book \"The Elements of Computing Systems\""
+                , "// by Nisan and Schocken, MIT Press."
+                , "// File name: projects/07/StackArithmetic/SimpleAdd/SimpleAdd.vm"
+                , ""
+                , "// Pushes and adds two constants."
+                , "push constant 7      //comment"
+                , "push constant 8 //comment"
+                , "add //comment"
+                , "//comment"
+                ]
     output =
         intercalate
             "\n"

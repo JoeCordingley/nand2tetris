@@ -1,14 +1,14 @@
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE OverloadedStrings #-}
 
-module VMTranslator (translateFile, translate, incrementing) where
+module VMTranslator (translateInnerFunctionFile, translateInnerFunction, incrementing) where
 
 import Control.Monad.Reader (ReaderT (..), ask, mapReaderT)
 import Control.Monad.State.Lazy (StateT, evalStateT, get, lift, put)
 import Data.Functor.Identity
 import Data.List (intercalate)
 import Data.Void
-import Lib (FilePrefix (..), InputFile (..), OutputFile (..), liftMaybe, mapLeft)
+import Lib (FilePrefix (..), InputFile (..), OutputFile (..), Source (..), liftMaybe, mapLeft)
 import System.IO (IOMode (ReadMode, WriteMode), hGetContents, hPutStrLn, withFile)
 import Text.Megaparsec hiding (State)
 import Text.Megaparsec.Char (digitChar, eol, hspace1, letterChar, string)
@@ -20,14 +20,17 @@ type Parser = ParsecT Void String (Incrementing (WithFilePrefix Identity))
 type Incrementing m = StateT Int m
 type WithFilePrefix m = ReaderT FilePrefix m
 
-translateFile :: FilePrefix -> InputFile -> OutputFile -> IO ()
-translateFile filePrefix = compileFile $ flip runReaderT filePrefix . translate
+translateFile :: (Source -> ReaderT FilePrefix (Either String) String) -> FilePrefix -> InputFile -> OutputFile -> IO ()
+translateFile translateString filePrefix = compileFile (flip runReaderT filePrefix . translateString)
 
-translate :: String -> ReaderT FilePrefix (Either String) String
-translate = fmap (intercalate "\n") . runTrans instructions
+translateInnerFunctionFile :: FilePrefix -> InputFile -> OutputFile -> IO ()
+translateInnerFunctionFile = translateFile translateInnerFunction
 
-runTrans :: Parser a -> String -> ReaderT FilePrefix (Either String) a
-runTrans p = mapReaderT runIdentity . fmap (mapLeft errorBundlePretty) . flip evalStateT 0 . runParserT p "sourceName"
+translateInnerFunction :: Source -> ReaderT FilePrefix (Either String) String
+translateInnerFunction = fmap (intercalate "\n") . runTrans instructions
+
+runTrans :: Parser a -> Source -> ReaderT FilePrefix (Either String) a
+runTrans p = mapReaderT runIdentity . fmap (mapLeft errorBundlePretty) . flip evalStateT 0 . runParserT p "sourceName" . getSource
 
 line :: Parser [String]
 line = fmap concat . lexeme' . optional $ vminstruction
@@ -40,18 +43,30 @@ lines' l = (<>) <$> l <*> rest
 instructions :: Parser [String]
 instructions = lines' $ whitespace *> line
 
+functions :: Parser [String]
+functions = fmap concat $ blankLines *> many (withTrailingBlankLines function)
+
+blankLines :: Parser ()
+blankLines = undefined
+
+withTrailingBlankLines :: Parser a -> Parser a
+withTrailingBlankLines = undefined
+
+function :: Parser [String]
+function = undefined
+
 whitespace :: Parser ()
 whitespace = space hspace1 comment empty
 
 lexeme' :: Parser a -> Parser a
 lexeme' = lexeme whitespace
 
-compileFile :: (String -> Either String String) -> InputFile -> OutputFile -> IO ()
+compileFile :: (Source -> Either String String) -> InputFile -> OutputFile -> IO ()
 compileFile compile (InputFile input) (OutputFile output) =
     withFile input ReadMode $ \i ->
         withFile output WriteMode $ \o -> do
             contents <- hGetContents i
-            case compile contents of
+            case compile $ Source contents of
                 Right compiled -> hPutStrLn o compiled *> putStrLn "success"
                 Left errorBundle -> putStr errorBundle
 

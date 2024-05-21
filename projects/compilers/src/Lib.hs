@@ -1,4 +1,4 @@
-module Lib (InputFile (..), OutputFile (..), FilePrefix (..), compileFile, liftMaybe, headMay, mapLeft) where
+module Lib (InputFile (..), OutputFile (..), FilePrefix (..), compileFile, liftMaybe, headMay, mapLeft, Source (..)) where
 
 import Control.Applicative (Alternative, empty)
 import System.IO (IOMode (ReadMode, WriteMode), hGetContents, hPutStrLn, withFile)
@@ -27,6 +27,8 @@ headMay [] = Nothing
 mapLeft :: (a -> c) -> Either a b -> Either c b
 mapLeft f (Left a) = Left $ f a
 mapLeft _ (Right b) = Right b
+
+newtype Source = Source {getSource :: String}
 
 -- passState :: (s -> a) -> State s a
 -- passState = gets
