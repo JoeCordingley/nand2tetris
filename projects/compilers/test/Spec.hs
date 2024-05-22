@@ -1,5 +1,5 @@
 import AssemblerSpec
-import Test.Tasty
+import Test.Tasty (defaultMain, testGroup)
 import VMTranslatorSpec (testVMTranslator)
 
 main :: IO ()

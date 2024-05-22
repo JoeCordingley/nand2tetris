@@ -91,7 +91,7 @@ D=M
 @R13
 A=M
 M=D
-(LOOP)
+(null.LOOP)
 @ARG
 D=M
 @0
@@ -105,11 +105,11 @@ M=M+1
 @SP
 AM=M-1
 D=M
-@COMPUTE_ELEMENT
+@null.COMPUTE_ELEMENT
 D;JNE
-@END
+@null.END
 0;JMP
-(COMPUTE_ELEMENT)
+(null.COMPUTE_ELEMENT)
 @THAT
 D=M
 @0
@@ -223,6 +223,6 @@ D=M
 @R13
 A=M
 M=D
-@LOOP
+@null.LOOP
 0;JMP
-(END)
+(null.END)
