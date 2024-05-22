@@ -17,7 +17,7 @@ D=M
 @R13
 A=M
 M=D
-(LOOP)
+(null.LOOP)
 @ARG
 D=M
 @0
@@ -114,7 +114,7 @@ M=M+1
 @SP
 AM=M-1
 D=M
-@LOOP
+@null.LOOP
 D;JNE
 @LCL
 D=M

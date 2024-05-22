@@ -10,7 +10,7 @@ import VMTranslator (translateInnerFunctionFile)
 main :: IO ()
 main = translateFile =<< execParser opts
   where
-    translateFile (filePrefix, inputFile, outputFile, Nothing) = translateInnerFunctionFile filePrefix inputFile outputFile
+    translateFile (filePrefix, inputFile, outputFile, Just functionName) = translateInnerFunctionFile functionName filePrefix inputFile outputFile
     opts =
         info
             (argsParser <**> helper)

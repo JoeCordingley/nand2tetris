@@ -11,9 +11,8 @@ testVMTranslator :: TestTree
 testVMTranslator = testGroup "VMTranslator tests" [simpleAdd]
 
 simpleAdd :: TestTree
-simpleAdd = testCase "SimpleAdd.vm" $ translate' (FilePrefix "file") input @?= Right output
+simpleAdd = testCase "SimpleAdd.vm" $ translateInnerFunction "null" (FilePrefix "file") input @?= Right output
   where
-    translate' prefix = flip runReaderT prefix . translateInnerFunction
     input =
         Source $
             intercalate

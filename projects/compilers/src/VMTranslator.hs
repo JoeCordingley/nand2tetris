@@ -20,28 +20,28 @@ type Parser = ParsecT Void String (Incrementing (WithFilePrefix Identity))
 type Incrementing m = StateT Int m
 type WithFilePrefix m = ReaderT FilePrefix m
 
-translateFile :: (Source -> ReaderT FilePrefix (Either String) String) -> FilePrefix -> InputFile -> OutputFile -> IO ()
-translateFile translateString filePrefix = compileFile (flip runReaderT filePrefix . translateString)
+translateFile :: (a -> Source -> Either String String) -> a -> InputFile -> OutputFile -> IO ()
+translateFile translateString = compileFile . translateString
 
-translateInnerFunctionFile :: FilePrefix -> InputFile -> OutputFile -> IO ()
-translateInnerFunctionFile = translateFile translateInnerFunction
+translateInnerFunctionFile :: FunctionName -> FilePrefix -> InputFile -> OutputFile -> IO ()
+translateInnerFunctionFile functionName = translateFile (translateInnerFunction functionName)
 
-translateInnerFunction :: Source -> ReaderT FilePrefix (Either String) String
-translateInnerFunction = fmap (intercalate "\n") . runTrans instructions
+translateInnerFunction :: FunctionName -> FilePrefix -> Source -> Either String String
+translateInnerFunction functionName filePrefix = fmap (intercalate "\n") . flip runReaderT filePrefix . runTrans (instructions functionName)
 
 runTrans :: Parser a -> Source -> ReaderT FilePrefix (Either String) a
 runTrans p = mapReaderT runIdentity . fmap (mapLeft errorBundlePretty) . flip evalStateT 0 . runParserT p "sourceName" . getSource
 
-line :: Parser [String]
-line = fmap concat . lexeme' . optional $ vminstruction
+line :: FunctionName -> Parser [String]
+line functionName = fmap concat . lexeme' . optional $ vminstruction functionName
 
 lines' :: (MonadParsec e String f) => f [a] -> f [a]
 lines' l = (<>) <$> l <*> rest
   where
     rest = [] <$ eof <|> eol *> lines' l
 
-instructions :: Parser [String]
-instructions = lines' $ whitespace *> line
+instructions :: FunctionName -> Parser [String]
+instructions functionName = lines' $ whitespace *> line functionName
 
 functions :: Parser [String]
 functions = fmap concat $ blankLines *> many (withTrailingBlankLines function)
@@ -86,8 +86,10 @@ label' = (:) <$> nonDigitChar <*> many labelChar
     nonDigitChar = letterChar <|> oneOf ['_', '.', ':']
     labelChar = digitChar <|> nonDigitChar
 
-vminstruction :: Parser [String]
-vminstruction = memoryCommand <|> logicalCommand <|> programFlowCommand
+type FunctionName = String
+
+vminstruction :: FunctionName -> Parser [String]
+vminstruction functionName = memoryCommand <|> logicalCommand <|> programFlowCommand
   where
     memoryCommand = lexeme' op <*> lexeme' segment <*> lexeme' index
       where
@@ -158,13 +160,14 @@ vminstruction = memoryCommand <|> logicalCommand <|> programFlowCommand
       where
         labelCommand = fmap f $ lexeme' (string "label") *> lexeme' label'
           where
-            f label'' = ["(" <> label'' <> ")"]
+            f label'' = ["(" <> labelString label'' <> ")"]
         ifgoto = fmap f $ lexeme' (string "if-goto") *> lexeme' label'
           where
-            f label'' = popd <> ["@" <> label'', "D;JNE"]
+            f label'' = popd <> ['@' : labelString label'', "D;JNE"]
         goto = fmap f $ lexeme' (string "goto") *> lexeme' label'
           where
-            f label'' = ["@" <> label'', "0;JMP"]
+            f label'' = ['@' : labelString label'', "0;JMP"]
+        labelString label'' = functionName <> "." <> label''
     pushd = ["@SP", "A=M", "M=D", "@SP", "M=M+1"]
     popd =
         [ "@SP"
