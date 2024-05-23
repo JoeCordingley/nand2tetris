@@ -61,14 +61,13 @@ withTrailingBlankLines p = p <* many (line hwhitespace)
 
 function :: Parser [String]
 function = do
-    (functionName, i) <- functionLine
+    (functionName, i) <- line $ (,) <$> (lexeme' (string "function") *> lexeme' label') <*> int
     instructions' <- fmap concat . many . try . line . fmap concat . optional $ vminstruction functionName
     void . line $ string "return"
-    return $ functionInit functionName i <> instructions' <> functionDestroy
+    return $ functionInit functionName i <> instructions' <> functionReturn
   where
-    functionLine = undefined
-    functionInit = undefined
-    functionDestroy = undefined
+    functionInit functionName i = "(" <> functionName <> ")" : concat (replicate i $ pushConstant 0)
+    functionReturn = undefined
 
 hwhitespace :: Parser ()
 hwhitespace = space hspace1 comment empty
@@ -103,6 +102,12 @@ label' = (:) <$> nonDigitChar <*> many labelChar
 
 type FunctionName = String
 
+pushConstant :: Int -> [String]
+pushConstant i = ["@" <> show i, "D=A"] <> pushd
+
+pushd :: [String]
+pushd = ["@SP", "A=M", "M=D", "@SP", "M=M+1"]
+
 vminstruction :: FunctionName -> Parser [String]
 vminstruction functionName = memoryCommand <|> logicalCommand <|> programFlowCommand
   where
@@ -116,7 +121,7 @@ vminstruction functionName = memoryCommand <|> logicalCommand <|> programFlowCom
           where
             constant = f <$ string "constant"
               where
-                f Push i = ["@" <> show i, "D=A"] <> pushd
+                f Push i = pushConstant i
                 f Pop _ = ["@SP", "M=M-1"]
             temp = rSegment 5 <$ string "temp"
             pointer = rSegment 3 <$ string "pointer"
@@ -183,7 +188,6 @@ vminstruction functionName = memoryCommand <|> logicalCommand <|> programFlowCom
           where
             f label'' = ['@' : labelString label'', "0;JMP"]
         labelString label'' = functionName <> "." <> label''
-    pushd = ["@SP", "A=M", "M=D", "@SP", "M=M+1"]
     popd =
         [ "@SP"
         , "AM=M-1"
