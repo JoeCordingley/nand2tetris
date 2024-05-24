@@ -1,7 +1,7 @@
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE OverloadedStrings #-}
 
-module VMTranslator (translateInnerFunctionFile, translateFunctionFile, innerFunctionInstructions, incrementing) where
+module VMTranslator (translateInnerFunctionFile, translateFunctionFile, innerFunctionInstructions, incrementing, vminstruction, Parser, line) where
 
 import Control.Monad.Reader (ReaderT (..), ask, mapReaderT)
 import Control.Monad.State.Lazy (StateT, evalStateT, get, lift, put)
@@ -51,7 +51,9 @@ instructions :: FunctionName -> Parser [String]
 instructions functionName = fmap concat . untilEof . line . fmap concat . optional $ vminstruction functionName
 
 functions :: Parser [String]
-functions = fmap concat $ whitespace *> many (withTrailingBlankLines function) <* eof
+functions = fmap concat $ whitespace *> untilEof (lexeme whitespace function)
+
+-- functions = lexeme whitespace function
 
 whitespace :: Parser ()
 whitespace = space space1 comment empty
@@ -67,7 +69,17 @@ function = do
     return $ functionInit functionName i <> instructions' <> functionReturn
   where
     functionInit functionName i = "(" <> functionName <> ")" : concat (replicate i $ pushConstant 0)
-    functionReturn = undefined
+    functionReturn =
+        ["@LCL", "D=M", "@FRAME", "M=D"] -- FRAME = LCL
+            <> ["@5", "A=D-A", "D=M", "@RET", "M=D"] -- RET = *(FRAME-5)
+            <> popd
+            <> ["@ARG", "A=M", "M=D"] -- ARG = pop()
+            <> ["D=A+1", "@SP", "M=D"] -- SP = ARG+1
+            <> ["@FRAME", "A=M-1", "D=M", "@THAT", "M=D"] -- THAT = *(FRAME-1)
+            <> ["@FRAME", "D=M", "@2", "A=D-A", "D=M", "@THIS", "M=D"] -- THIS = *(FRAME-2)
+            <> ["@FRAME", "D=M", "@3", "A=D-A", "D=M", "@ARG", "M=D"] -- ARG = *(FRAME-3)
+            <> ["@FRAME", "D=M", "@4", "A=D-A", "D=M", "@LCL", "M=D"] -- LCL = *(FRAME-4)
+            <> ["@RET", "A=M", "0;JMP"] -- goto RET
 
 hwhitespace :: Parser ()
 hwhitespace = space hspace1 comment empty
@@ -107,6 +119,13 @@ pushConstant i = ["@" <> show i, "D=A"] <> pushd
 
 pushd :: [String]
 pushd = ["@SP", "A=M", "M=D", "@SP", "M=M+1"]
+
+popd :: [String]
+popd =
+    [ "@SP"
+    , "AM=M-1"
+    , "D=M"
+    ]
 
 vminstruction :: FunctionName -> Parser [String]
 vminstruction functionName = memoryCommand <|> logicalCommand <|> programFlowCommand
@@ -188,11 +207,6 @@ vminstruction functionName = memoryCommand <|> logicalCommand <|> programFlowCom
           where
             f label'' = ['@' : labelString label'', "0;JMP"]
         labelString label'' = functionName <> "." <> label''
-    popd =
-        [ "@SP"
-        , "AM=M-1"
-        , "D=M"
-        ]
 
 incrementing :: (Int -> Parser a) -> Parser a
 incrementing f = do
