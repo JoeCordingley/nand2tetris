@@ -1,7 +1,7 @@
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE OverloadedStrings #-}
 
-module VMTranslator (translateInnerFunctionFile, translateFunctionFile, innerFunctionInstructions, incrementing, vminstruction, Parser, line) where
+module VMTranslator (translateInnerFunctionFile, translateFunctionFile, innerFunctionInstructions, functionsInstructions, incrementing, vminstruction, Parser, line) where
 
 import Control.Monad.Reader (ReaderT (..), ask, mapReaderT)
 import Control.Monad.State.Lazy (StateT, evalStateT, get, lift, put)
@@ -48,23 +48,21 @@ line :: Parser a -> Parser a
 line p = hwhitespace *> lexeme' p <* (void eol <|> eof)
 
 instructions :: FunctionName -> Parser [String]
-instructions functionName = fmap concat . untilEof . line . fmap concat . optional $ vminstruction functionName
+instructions = fmap concat . untilEof . innerFunctionLine
 
 functions :: Parser [String]
 functions = fmap concat $ whitespace *> untilEof (lexeme whitespace function)
 
--- functions = lexeme whitespace function
-
 whitespace :: Parser ()
 whitespace = space space1 comment empty
 
-withTrailingBlankLines :: Parser a -> Parser a
-withTrailingBlankLines p = p <* many (line hwhitespace)
+innerFunctionLine :: FunctionName -> Parser [String]
+innerFunctionLine = try . line . fmap concat . optional . vminstruction
 
 function :: Parser [String]
 function = do
     (functionName, i) <- line $ (,) <$> (lexeme' (string "function") *> lexeme' label') <*> int
-    instructions' <- fmap concat . many . try . line . fmap concat . optional $ vminstruction functionName
+    instructions' <- fmap concat . many $ innerFunctionLine functionName
     void . line $ string "return"
     return $ functionInit functionName i <> instructions' <> functionReturn
   where
