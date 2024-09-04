@@ -1,4 +1,4 @@
-module Lib (InputFile (..), OutputFile (..), FilePrefix (..), compileFile, liftMaybe, headMay, mapLeft, Source (..)) where
+module Lib (InputFile (..), OutputFile (..), FilePrefix (..), Directory(..),compileFile, liftMaybe, headMay, mapLeft, Source (..)) where
 
 import Control.Applicative (Alternative, empty)
 import System.IO (IOMode (ReadMode, WriteMode), hGetContents, hPutStrLn, withFile)
@@ -6,6 +6,7 @@ import System.IO (IOMode (ReadMode, WriteMode), hGetContents, hPutStrLn, withFil
 newtype InputFile = InputFile String
 newtype OutputFile = OutputFile String
 newtype FilePrefix = FilePrefix String
+newtype Directory = Directory String
 
 compileFile :: (String -> Maybe String) -> InputFile -> OutputFile -> IO ()
 compileFile compile (InputFile input) (OutputFile output) =
