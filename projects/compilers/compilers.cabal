@@ -40,10 +40,12 @@ library
       HUnit
     , base >=4.7 && <5
     , containers
+    , directory
     , megaparsec
     , mtl
     , optparse-applicative
     , regex-tdfa
+    , resourcet
     , text
   default-language: Haskell2010
 
@@ -61,10 +63,12 @@ executable assembler
     , base >=4.7 && <5
     , compilers
     , containers
+    , directory
     , megaparsec
     , mtl
     , optparse-applicative
     , regex-tdfa
+    , resourcet
     , text
   default-language: Haskell2010
 
@@ -82,10 +86,12 @@ executable vm-translator
     , base >=4.7 && <5
     , compilers
     , containers
+    , directory
     , megaparsec
     , mtl
     , optparse-applicative
     , regex-tdfa
+    , resourcet
     , text
   default-language: Haskell2010
 
@@ -106,10 +112,12 @@ test-suite compilers-test
     , base >=4.7 && <5
     , compilers
     , containers
+    , directory
     , megaparsec
     , mtl
     , optparse-applicative
     , regex-tdfa
+    , resourcet
     , tasty
     , tasty-hunit
     , text

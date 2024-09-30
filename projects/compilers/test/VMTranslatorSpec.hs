@@ -11,17 +11,18 @@ testVMTranslator =
     testGroup "VMTranslator tests" $
         fmap
             f
-            [ ("../07/StackArithmetic/SimpleAdd/", "SimpleAdd", innerFunctionInstructions "null")
-            , ("../07/StackArithmetic/StackTest/", "StackTest", innerFunctionInstructions "null")
-            , ("../07/MemoryAccess/BasicTest/", "BasicTest", innerFunctionInstructions "null")
-            , ("../07/MemoryAccess/PointerTest/", "PointerTest", innerFunctionInstructions "null")
-            , ("../07/MemoryAccess/StaticTest/", "StaticTest", innerFunctionInstructions "null")
-            , ("../08/ProgramFlow/BasicLoop/", "BasicLoop", innerFunctionInstructions "null")
-            , ("../08/ProgramFlow/FibonacciSeries/", "FibonacciSeries", innerFunctionInstructions "null")
+            [ ("../07/StackArithmetic/SimpleAdd/", "SimpleAdd", innerFunctions)
+            , ("../07/StackArithmetic/StackTest/", "StackTest", innerFunctions)
+            , ("../07/MemoryAccess/BasicTest/", "BasicTest", innerFunctions)
+            , ("../07/MemoryAccess/PointerTest/", "PointerTest", innerFunctions)
+            , ("../07/MemoryAccess/StaticTest/", "StaticTest", innerFunctions)
+            , ("../08/ProgramFlow/BasicLoop/", "BasicLoop", innerFunctions)
+            , ("../08/ProgramFlow/FibonacciSeries/", "FibonacciSeries", innerFunctions)
             , ("../08/FunctionCalls/SimpleFunction/", "SimpleFunction", functionsInstructions)
             ]
   where
     f (path, prefix, parser) = fileCompare path prefix parser
+    innerFunctions = innerFunctionInstructions "null"
 
 type ParseFunction = FilePrefix -> Source -> Either String [String]
 

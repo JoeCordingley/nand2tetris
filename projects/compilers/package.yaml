@@ -28,6 +28,8 @@ dependencies:
 - optparse-applicative
 - megaparsec
 - text
+- resourcet
+- directory
 
 ghc-options:
 - -Wall

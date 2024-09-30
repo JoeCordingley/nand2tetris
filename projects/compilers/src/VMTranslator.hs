@@ -1,20 +1,23 @@
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE OverloadedStrings #-}
 
-module VMTranslator (translateInnerFunctionFile, translateFunctionFile, innerFunctionInstructions, functionsInstructions, incrementing, vminstruction, Parser, line) where
+module VMTranslator (translateInnerFunctionFile, translateFunctionFile, innerFunctionInstructions, functionsInstructions, incrementing, vminstruction, Parser, line, translateDir, vmRegex) where
 
 import Control.Monad.Reader (ReaderT (..), ask, mapReaderT)
 import Control.Monad.State.Lazy (StateT, evalStateT, get, lift, put)
+import Control.Monad.Trans.Resource (ResourceT, allocate, runResourceT)
 import Data.Functor (void)
 import Data.Functor.Identity
 import Data.List (intercalate)
 import Data.Void
-import Lib (FilePrefix (..), InputFile (..), OutputFile (..), Source (..), liftMaybe, mapLeft)
-import System.IO (IOMode (ReadMode, WriteMode), hGetContents, hPutStrLn, withFile)
+import Lib (Directory (..), FilePrefix (..), InputFile (..), OutputFile (..), Source (..), liftMaybe, mapLeft)
+import System.Directory (getDirectoryContents)
+import System.IO (IOMode (ReadMode, WriteMode), hClose, hGetContents, hPutStr, hPutStrLn, openFile, withFile)
 import Text.Megaparsec hiding (State)
 import Text.Megaparsec.Char (digitChar, eol, hspace1, letterChar, space1, string)
 import Text.Megaparsec.Char.Lexer
 import Text.Read (readMaybe)
+import Text.Regex.TDFA ((=~))
 
 type Parser = ParsecT Void String (Incrementing (WithFilePrefix Identity))
 
@@ -49,6 +52,15 @@ line p = hwhitespace *> lexeme' p <* (void eol <|> eof)
 
 instructions :: FunctionName -> Parser [String]
 instructions = fmap concat . untilEof . innerFunctionLine
+
+translateDir :: Directory -> IO ()
+translateDir (Directory dir) = do
+    filePaths <- getDirectoryContents dir
+    runResourceT $ do
+        contents <- fmap concat . traverse readFileResource $ filter isVMFile filePaths
+        case functionsInstructions (FilePrefix dir) $ Source contents of
+            Right compiled -> writeFileResource (dir <> ".asm") (intercalate "\n" compiled) *> lift (putStrLn "success")
+            Left errorBundle -> lift $ putStr errorBundle
 
 functions :: Parser [String]
 functions = fmap concat $ whitespace *> untilEof (lexeme whitespace function)
@@ -93,6 +105,19 @@ compileFile compile (InputFile input) (OutputFile output) =
             case compile $ Source contents of
                 Right compiled -> hPutStrLn o compiled *> putStrLn "success"
                 Left errorBundle -> putStr errorBundle
+
+readFileResource :: FilePath -> ResourceT IO String
+readFileResource filePath = do
+    (_, h) <- allocate (openFile filePath ReadMode) hClose
+    lift $ hGetContents h
+
+writeFileResource :: FilePath -> String -> ResourceT IO ()
+writeFileResource filePath contents = do
+    (_, h) <- allocate (openFile filePath WriteMode) hClose
+    lift $ hPutStr h contents
+
+isVMFile :: FilePath -> Bool
+isVMFile filePath = filePath =~ vmRegex
 
 comment :: Parser ()
 comment = skipLineComment "//"
@@ -193,7 +218,7 @@ vminstruction functionName = memoryCommand <|> logicalCommand <|> programFlowCom
             [ "@SP"
             , "AM=M-1"
             ]
-    programFlowCommand = labelCommand <|> ifgoto <|> goto
+    programFlowCommand = labelCommand <|> ifgoto <|> goto <|> call
       where
         labelCommand = fmap f $ lexeme' (string "label") *> label'
           where
@@ -205,6 +230,21 @@ vminstruction functionName = memoryCommand <|> logicalCommand <|> programFlowCom
           where
             f label'' = ['@' : labelString label'', "0;JMP"]
         labelString label'' = functionName <> "." <> label''
+        call = do
+            lexeme' (string "call")
+            functionName <- lexeme' label'
+            n <- lexeme' int
+            incrementing $ return . f functionName n
+          where
+            f functionName n i =
+                push (returnAddress i)
+                    <> push "LCL"
+                    <> push "ARG"
+                    <> push "THIS"
+                    <> push "THAT"
+                    <> undefined
+            returnAddress i = "return" <> show i
+            push symbol = ["@" <> symbol, "D=M"] <> pushd
 
 incrementing :: (Int -> Parser a) -> Parser a
 incrementing f = do
@@ -213,3 +253,6 @@ incrementing f = do
 
 withFilePrefix :: (FilePrefix -> Parser a) -> Parser a
 withFilePrefix f = lift ask >>= f
+
+vmRegex :: String
+vmRegex = "^(.*/(.*))\\.vm$"
